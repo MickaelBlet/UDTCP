@@ -14,12 +14,11 @@ int main(int argc, char const *argv[])
     while (retConnection == -1)
     {
         retConnection = udtcp_connection("127.0.0.1", 4242, &serv_fd);
-        std::cout << "Connection return: " << retConnection << " serv_fd: " << serv_fd << std::endl;
         if (retConnection == -1)
         {
-            std::cerr << "Connection to server fail, retry in 2 secondes" << std::endl;
+            std::cerr << "Retry connection in 2 secondes" << std::endl;
+            sleep(2);
         }
-        sleep(2);
     }
 
     std::cout << "Connection success" << std::endl;
@@ -53,7 +52,8 @@ int main(int argc, char const *argv[])
             retConnection = -1;
             while (retConnection == -1)
             {
-                retConnection = connection("127.0.0.1", 4242, &serv_fd);
+                close(serv_fd);
+                retConnection = udtcp_connection("127.0.0.1", 4242, &serv_fd);
                 std::cout << "Connection return: " << retConnection << " serv_fd: " << serv_fd << std::endl;
                 if (retConnection == -1)
                 {

@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 int udtcp_get_udp_port(int sock)
 {
     //

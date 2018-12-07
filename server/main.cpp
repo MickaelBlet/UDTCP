@@ -6,10 +6,21 @@
 #include <string.h> 
 #include <sys/socket.h> 
 #include <sys/types.h> 
+#include <signal.h>
+
 #define MAX 80 
 #define PORT 4242 
   
 int portUDCount = 3900;
+int sockServ    = 0;
+
+void signalStop(int sig)
+{
+    (void)sig;
+    if (sockServ != 0)
+        close(sockServ);
+    exit(EXIT_SUCCESS);
+}
 
 // Function designed for chat between client and server. 
 void func(int sockfd) 
@@ -68,18 +79,23 @@ void func(int sockfd)
 // Driver function 
 int main() 
 { 
-    int sockfd, connfd, len; 
+    int connfd, len; 
     struct sockaddr_in servaddr, cli; 
   
     // socket create and verification 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0); 
-    if (sockfd == -1) { 
+    sockServ = socket(AF_INET, SOCK_STREAM, 0); 
+    if (sockServ == -1) { 
         printf("Socket creation failed...\n"); 
         exit(0); 
     } 
     else
         printf("Socket successfully created..\n"); 
-    bzero(&servaddr, sizeof(servaddr)); 
+    bzero(&servaddr, sizeof(servaddr));
+
+    signal(SIGABRT, &signalStop);
+    signal(SIGSTOP, &signalStop);
+    signal(SIGINT,  &signalStop);
+    signal(SIGQUIT, &signalStop);
   
     // assign IP, PORT 
     servaddr.sin_family = AF_INET; 
@@ -87,7 +103,7 @@ int main()
     servaddr.sin_port = htons(PORT); 
   
     // Binding newly created socket to given IP and verification 
-    if ((bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr))) != 0) { 
+    if ((bind(sockServ, (struct sockaddr*)&servaddr, sizeof(servaddr))) != 0) { 
         printf("Socket bind failed...\n"); 
         exit(0); 
     } 
@@ -95,7 +111,7 @@ int main()
         printf("Socket successfully binded..\n"); 
   
     // Now server is ready to listen and verification 
-    if ((listen(sockfd, 5)) != 0) { 
+    if ((listen(sockServ, 5)) != 0) { 
         printf("Listen failed...\n"); 
         exit(0); 
     } 
@@ -104,7 +120,7 @@ int main()
     len = sizeof(cli); 
   
     // Accept the data packet from client and verification 
-    connfd = accept(sockfd, (struct sockaddr *)&cli, (socklen_t*)&len); 
+    connfd = accept(sockServ, (struct sockaddr *)&cli, (socklen_t*)&len); 
     if (connfd < 0) { 
         printf("Server acccept failed...\n"); 
         exit(0); 
@@ -118,5 +134,5 @@ int main()
     func(connfd); 
   
     // After chatting close the socket 
-    close(sockfd); 
+    close(sockServ); 
 } 
