@@ -2,12 +2,14 @@
 ## Author: Mickaël BLET
 ##
 
-MAKEFLAG	=
+MAKEFLAG	=	--no-print-directory
 
 BUILD_DIR	=	./
 
 MODULE		=	\
-				udtcp
+				client \
+				server \
+				../../udtcp
 
 all:		MODE=debug
 all:		LIB_MODE=lib_debug
@@ -30,8 +32,12 @@ help:
 
 #------------------------------------------------------------------------------
 
-udtcp:
+../../udtcp:
 	$(MAKE) $(MAKEFLAG) $(LIB_MODE) -C $(BUILD_DIR)$@
+client: ../../udtcp
+	$(MAKE) $(MAKEFLAG) $(MODE) -C $(BUILD_DIR)$@
+server:	../../udtcp
+	$(MAKE) $(MAKEFLAG) $(MODE) -C $(BUILD_DIR)$@
 
 #------------------------------------------------------------------------------
 

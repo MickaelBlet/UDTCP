@@ -17,11 +17,11 @@ VERSION					=	1.0.0
 
 # name of your binary
 #	default value: (name of Makefile current directory)
-BINARY_NAME				=	udtcp_server
+BINARY_NAME				=	udtcp_client
 
 # name of your library
 #	default value: (name of Makefile current directory)
-LIBRARY_NAME			=	udtcp_server
+LIBRARY_NAME			=	udtcp_client
 
 #------------------------------------------------------------------------------
 # directories
@@ -33,7 +33,7 @@ BINARY_DIRECTORY		=	../bin/
 
 # destination path of your libraries (not forget the last '/')
 #	default value: lib/
-LIBRARY_DIRECTORY		=	../lib/
+LIBRARY_DIRECTORY		=	../../../lib/
 
 # source path (not forget the last '/')
 #	default value: src/
@@ -57,7 +57,7 @@ OBJECT_DIRECTORY		=	./obj/
 
 # extention of source file
 #	default value: .c
-SOURCE_EXTENTION		=	.cpp
+SOURCE_EXTENTION		=	.c
 
 # exclude source for binary
 BINARY_EXCLUDE_SOURCE	=
@@ -71,21 +71,21 @@ TEST_EXCLUDE_SOURCE		=
 # compilation line:
 #	$(COMPILER) $(FLAGS) ... $(OPTIONS)
 
-DEBUG_COMPILER			=	$(CXX)
-RELEASE_COMPILER		=	$(CXX)
+DEBUG_COMPILER			=	$(CC)
+RELEASE_COMPILER		=	$(CC)
 TEST_COMPILER			=	$(CXX)
 
-DEBUG_FLAGS				=	-std=c++11 -Wall -Wextra -ggdb3
-RELEASE_FLAGS			=	-std=c++11 -Wall -Wextra -Werror
+DEBUG_FLAGS				=	-Wall -Wextra -ggdb3
+RELEASE_FLAGS			=	-O2 -Wall -Wextra -Werror
 TEST_FLAGS				=	-std=c++11 -Wall -Wextra -ggdb3
 
 DEBUG_OPTIONS			=	-DVERSION=\"$(VERSION)\" \
-							-I$(INCLUDE_DIRECTORY) -I../udtcp/include \
+							-I$(INCLUDE_DIRECTORY) -I../../../udtcp/include \
 							-L$(LIBRARY_DIRECTORY) \
 							-ludtcp-debug \
 							-lpthread
 RELEASE_OPTIONS			=	-DVERSION=\"$(VERSION)\" \
-							-I$(INCLUDE_DIRECTORY) -I../udtcp/include \
+							-I$(INCLUDE_DIRECTORY) -I../../../udtcp/include \
 							-L$(LIBRARY_DIRECTORY) \
 							-ludtcp-release \
 							-lpthread
@@ -99,7 +99,7 @@ DEBUG_DEPENDENCIES		=	${LIBRARY_DIRECTORY}libudtcp-debug.a
 RELEASE_DEPENDENCIES	=	${LIBRARY_DIRECTORY}libudtcp-release.a
 TEST_DEPENDENCIES		=	$(LIBRARY_DIRECTORY)lib$(LIBRARY_NAME)-debug.a
 
-include ../module.mk
+include ../../../module.mk
 
 exe_test:	test
 	$(foreach bin,$(BINARIES_TEST),$(bin) || exit;)

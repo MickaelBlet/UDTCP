@@ -108,12 +108,12 @@ BINARIES_TEST				:=	$(addprefix $(BINARY_DIRECTORY),$(TEST_SOURCE_FILTER:.cpp=-t
 
 COLOR_SHELL_DEBUG			=	$$(tput setaf 3)
 COLOR_SHELL_RELEASE			=	$$(tput setaf 2)
-COLOR_SHELL_TEST			=	$$(tput setaf 4)
+COLOR_SHELL_TEST			=	$$(tput setaf 6)
 COLOR_SHELL_RESET			=	$$(tput sgr0)
 
-STRING_PRINT_DEBUG			=	"$(COLOR_SHELL_DEBUG) /---------\\ \n -  DEBUG  - $(COLOR_SHELL_RESET)%s$(COLOR_SHELL_DEBUG)\n \\---------/ $(COLOR_SHELL_RESET)\n"
-STRING_PRINT_RELEASE		=	"$(COLOR_SHELL_RELEASE) /---------\\ \n - RELEASE - $(COLOR_SHELL_RESET)%s$(COLOR_SHELL_RELEASE)\n \\---------/ $(COLOR_SHELL_RESET)\n"
-STRING_PRINT_TEST			=	"$(COLOR_SHELL_TEST) /---------\\ \n -  TEST   - $(COLOR_SHELL_RESET)%s$(COLOR_SHELL_TEST)\n \\---------/ $(COLOR_SHELL_RESET)\n"
+STRING_PRINT_DEBUG			=	"$(COLOR_SHELL_DEBUG)[----------] \n[ DEBUG    ] $(COLOR_SHELL_RESET)%s$(COLOR_SHELL_DEBUG)\n[----------] $(COLOR_SHELL_RESET)\n"
+STRING_PRINT_RELEASE		=	"$(COLOR_SHELL_RELEASE)[----------] \n[ RELEASE  ] $(COLOR_SHELL_RESET)%s$(COLOR_SHELL_RELEASE)\n[----------] $(COLOR_SHELL_RESET)\n"
+STRING_PRINT_TEST			=	"$(COLOR_SHELL_TEST)[----------] \n[ TEST     ] $(COLOR_SHELL_RESET)%s$(COLOR_SHELL_TEST)\n[----------] $(COLOR_SHELL_RESET)\n"
 
 #------------------------------------------------------------------------------
 
@@ -160,7 +160,7 @@ release:		$(BINARY_RELEASE)
 test:			$(BINARIES_TEST)
 
 clean:
-	$(RM) \
+	$(RM) $(sort \
 	$(LIBRARY_OBJECT_DEBUG) \
 	$(LIBRARY_OBJECT_DEBUG:.o=.d) \
 	$(LIBRARY_OBJECT_RELEASE) \
@@ -170,15 +170,17 @@ clean:
 	$(OBJECT_RELEASE) \
 	$(OBJECT_RELEASE:.o=.d) \
 	$(OBJECT_TEST) \
-	$(OBJECT_TEST:.o=.d)
+	$(OBJECT_TEST:.o=.d) \
+	)
 
 fclean:			clean
-	$(RM) \
+	$(RM) $(sort \
 	$(LIBRARY_DEBUG) \
 	$(LIBRARY_RELEASE) \
 	$(BINARY_DEBUG) \
 	$(BINARY_RELEASE) \
-	$(BINARIES_TEST)
+	$(BINARIES_TEST) \
+	)
 
 re:				fclean
 	$(MAKE) all

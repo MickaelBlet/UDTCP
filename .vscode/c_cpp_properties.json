@@ -5,7 +5,9 @@
             "includePath": [
                 "${default}",
                 "${workspaceFolder}/udtcp/include"
-            ]
+            ],
+            "cStandard": "c89",
+            "defines": ["_GNU_SOURCE"]
         }
     ],
     "version": 4

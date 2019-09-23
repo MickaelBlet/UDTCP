@@ -1,135 +1,361 @@
+/**
+ * udtcp
+ *
+ * Licensed under the MIT License <http://opensource.org/licenses/MIT>.
+ * Copyright (c) 2019 BLET Mickaël.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #ifndef _UDTCP_H_
-# define _UDTCP_H_
+#define _UDTCP_H_ 1
 
-#include <pthread.h>
-#include <time.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <poll.h>
-
-#define UDTCP_MAX_CONNECTION    100
-#define UDTCP_MAX_DATA_SIZE     8096
-#define UDTCP_LOG(udtcp, type, ...)                 \
-    if (udtcp->log_callback != NULL) {              \
-        char out_log[1024];                         \
-        snprintf(out_log, 1024, ##__VA_ARGS__);     \
-        udtcp->log_callback(udtcp, type, out_log);  \
-    }
+#include <stdio.h>      /* snprintf */
+#include <pthread.h>    /* pthread_mutex_t */
+#include <netinet/in.h> /* struct sockaddr_in, uint8_t, uint16_t, uint32_t */
+#include <poll.h>       /* struct pollfd */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-enum            e_udtcp_log_type
+/* enum of log level */
+enum udtcp_log_level_e
 {
-    UDTCP_LOG_ERROR,
-    UDTCP_LOG_INFO,
-    UDTCP_LOG_DEBUG
+    UDTCP_LOG_LEVEL_ERROR = 0,
+#define UDTCP_LOG_LEVEL_ERROR    UDTCP_LOG_LEVEL_ERROR
+    UDTCP_LOG_LEVEL_INFO,
+#define UDTCP_LOG_LEVEL_INFO     UDTCP_LOG_LEVEL_INFO
+    UDTCP_LOG_LEVEL_DEBUG
+#define UDTCP_LOG_LEVEL_DEBUG    UDTCP_LOG_LEVEL_DEBUG
 };
 
-typedef struct          udtcp_tcp_infos_s
+/* enum of connect return */
+enum udtcp_connect_e
 {
-    size_t              id;
-    int                 socket;
-    struct sockaddr_in  addr;
-    char                hostname[256];
-    char                ip[16];
-    uint16_t            port;
-}                       udtcp_tcp_infos_t;
-
-typedef struct          udtcp_tcp_server_s
-{
-    udtcp_tcp_infos_t*  server_infos;
-    size_t              count_id;
-    udtcp_tcp_infos_t*  clients_infos[UDTCP_MAX_CONNECTION];
-
-    struct pollfd       poll_fds[UDTCP_MAX_CONNECTION];
-    size_t              poll_nfds;
-    int                 poll_loop;
-
-    void                (*connect_callback)(struct udtcp_tcp_server_s* in_server, udtcp_tcp_infos_t *in_infos);
-    void                (*disconnect_callback)(struct udtcp_tcp_server_s* in_server, udtcp_tcp_infos_t *in_infos);
-    void                (*receive_callback)(struct udtcp_tcp_server_s* in_server, udtcp_tcp_infos_t *in_infos, void* data, size_t data_size);
-    void                (*log_callback)(struct udtcp_tcp_server_s* in_server, enum e_udtcp_log_type level, const char* str);
-
-    uint8_t             buffer_data[UDTCP_MAX_DATA_SIZE];
-    void*               user_data;
-}                       udtcp_tcp_server_t;
-
-typedef struct          udtcp_tcp_client_s
-{
-    udtcp_tcp_infos_t   client_infos;
-    udtcp_tcp_infos_t   server_infos;
-
-    void                (*connect_callback)(struct udtcp_tcp_client_s* in_client, udtcp_tcp_infos_t *in_infos);
-    void                (*disconnect_callback)(struct udtcp_tcp_client_s* in_client, udtcp_tcp_infos_t *in_infos);
-    void                (*receive_callback)(struct udtcp_tcp_client_s* in_client, udtcp_tcp_infos_t *in_infos, void* data, size_t data_size);
-    void                (*log_callback)(struct udtcp_tcp_client_s* in_client, enum e_udtcp_log_type level, const char* str);
-
-    void*               user_data;
-}                       udtcp_tcp_client_t;
-
-enum            e_receive
-{
-    UDTCP_RECEIVE_OK,
-    UDTCP_RECEIVE_FCNTL_ERROR,
-    UDTCP_RECEIVE_ERROR,
-    UDTCP_RECEIVE_TIMEOUT
+    UDTCP_CONNECT_SUCCESS = 0,
+#define UDTCP_CONNECT_SUCCESS   UDTCP_CONNECT_SUCCESS
+    UDTCP_CONNECT_ERROR,
+#define UDTCP_CONNECT_ERROR     UDTCP_CONNECT_ERROR
+    UDTCP_CONNECT_TIMEOUT,
+#define UDTCP_CONNECT_TIMEOUT   UDTCP_CONNECT_TIMEOUT
+    UDTCP_CONNECT_TOO_MANY
+#define UDTCP_CONNECT_TOO_MANY  UDTCP_CONNECT_TOO_MANY
 };
 
-int udtcp_noblock_socket(int socket, int block);
+/* enum of poll return */
+enum udtcp_poll_e
+{
+    UDTCP_POLL_SUCCESS = 0,
+#define UDTCP_POLL_SUCCESS      UDTCP_POLL_SUCCESS
+    UDTCP_POLL_ERROR,
+#define UDTCP_POLL_ERROR        UDTCP_POLL_ERROR
+    UDTCP_POLL_TIMEOUT,
+#define UDTCP_POLL_TIMEOUT      UDTCP_POLL_TIMEOUT
+    UDTCP_POLL_SIGNAL
+#define UDTCP_POLL_SIGNAL       UDTCP_POLL_SIGNAL
+};
+
+/* define options */
+#ifndef UDTCP_MAX_CONNECTION
+#define UDTCP_MAX_CONNECTION 42
+#endif
+
+/* logs */
+#ifdef DEBUG
+#define UDTCP_STRINGIFY(x) #x
+#define UDTCP_TOSTRING(x) UDTCP_STRINGIFY(x)
+#define UDTCP_SOURCE_LOG __FILE__ ":" UDTCP_TOSTRING(__LINE__) " "
+#define UDTCP_LOG_DEBUG 1
+#define UDTCP_LOG_INFO  1
+#define UDTCP_LOG_ERROR 1
+#else
+#define UDTCP_SOURCE_LOG /* nothing */
+#endif
+
+#define UDTCP_LOG(udtcp, level, format, ...)                                \
+    if (udtcp->log_callback != NULL)                                        \
+    {                                                                       \
+        char out_log[1024];                                                 \
+        snprintf(out_log, 1024, UDTCP_SOURCE_LOG format, ##__VA_ARGS__);    \
+        udtcp->log_callback(udtcp, level, out_log);                         \
+    }
+
+/* if log define replace by macro */
+#ifdef UDTCP_LOG_DEBUG
+#undef UDTCP_LOG_DEBUG
+#define UDTCP_LOG_DEBUG(udtcp, format, ...)                                 \
+    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
+#ifndef UDTCP_LOG_INFO
+#define UDTCP_LOG_INFO 1
+#endif
+#else
+#define UDTCP_LOG_DEBUG(...) /* nothing */
+#endif
+#ifdef UDTCP_LOG_INFO
+#undef UDTCP_LOG_INFO
+#define UDTCP_LOG_INFO(udtcp, format, ...)                                  \
+    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_INFO, format, ##__VA_ARGS__)
+#ifndef UDTCP_LOG_ERROR
+#define UDTCP_LOG_ERROR 1
+#endif
+#else
+#define UDTCP_LOG_INFO(...) /* nothing */
+#endif
+#ifdef UDTCP_LOG_ERROR
+#undef UDTCP_LOG_ERROR
+#define UDTCP_LOG_ERROR(udtcp, format, ...)                                 \
+    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
+#else
+#define UDTCP_LOG_ERROR(...) /* nothing */
+#endif
+
+#define UDTCP_POLL_TABLE_SIZE (2 + UDTCP_MAX_CONNECTION)
+
+struct udtcp_send_s
+{
+    pthread_mutex_t         mutex;
+    uint32_t                buffer_size;
+    uint8_t*                buffer;
+    uint8_t*                size_offset;
+    uint8_t*                payload_offset;
+};
+
+struct udtcp_infos_s
+{
+    size_t                  id;
+    char                    hostname[256];
+    char                    ip[16];
+    int                     tcp_socket;
+    int                     udp_server_socket;
+    int                     udp_client_socket;
+    struct sockaddr_in      tcp_addr;
+    struct sockaddr_in      udp_server_addr;
+    struct sockaddr_in      udp_client_addr;
+    uint16_t                tcp_port;
+    uint16_t                udp_server_port;
+    uint16_t                udp_client_port;
+    struct udtcp_send_s*    send;
+};
+
+struct udtcp_server_s
+{
+    struct udtcp_infos_s*   server_infos;
+    struct udtcp_infos_s*   clients_infos;
+    struct udtcp_infos_s    infos[UDTCP_POLL_TABLE_SIZE];
+    struct udtcp_send_s     sends[UDTCP_POLL_TABLE_SIZE];
+
+    struct pollfd           poll_fds[UDTCP_POLL_TABLE_SIZE];
+    size_t                  poll_nfds;
+
+    void                    (*connect_callback)
+        (struct udtcp_server_s* server, struct udtcp_infos_s* infos);
+    void                    (*disconnect_callback)
+        (struct udtcp_server_s* server, struct udtcp_infos_s* infos);
+    void                    (*receive_tcp_callback)
+        (struct udtcp_server_s* server, struct udtcp_infos_s* infos,
+         void* data, size_t data_size);
+    void                    (*receive_udp_callback)
+        (struct udtcp_server_s* server, struct udtcp_infos_s *infos,
+         void* data, size_t data_size);
+    void                    (*log_callback)
+        (struct udtcp_server_s* server,
+         enum udtcp_log_level_e level, const char* str);
+
+    size_t                  count_id;
+
+    uint8_t*                buffer_data;
+    size_t                  buffer_size;
+    void*                   user_data;
+};
+
+struct udtcp_client_s
+{
+    struct udtcp_infos_s*   client_infos;
+    struct udtcp_infos_s*   server_infos;
+    struct udtcp_infos_s    infos[2];
+    struct udtcp_send_s     send;
+
+    struct pollfd           poll_fds[2];
+    size_t                  poll_nfds;
+
+    void                    (*connect_callback)
+        (struct udtcp_client_s* client, struct udtcp_infos_s* infos);
+    void                    (*disconnect_callback)
+        (struct udtcp_client_s* client, struct udtcp_infos_s* infos);
+    void                    (*receive_tcp_callback)
+        (struct udtcp_client_s* client, struct udtcp_infos_s* infos,
+         void* data, size_t data_size);
+    void                    (*receive_udp_callback)
+        (struct udtcp_client_s* client, struct udtcp_infos_s* infos,
+         void* data, size_t data_size);
+    void                    (*log_callback)
+        (struct udtcp_client_s* client,
+         enum udtcp_log_level_e level, const char* str);
+
+    uint8_t*                buffer_data;
+    size_t                  buffer_size;
+    void*                   user_data;
+};
+
+typedef struct udtcp_infos_s    udtcp_infos;
+typedef struct udtcp_server_s   udtcp_server;
+typedef struct udtcp_client_s   udtcp_client;
+
+/*
+SOCKET
+*/
+int udtcp_socket_add_option(int socket, int option);
+int udtcp_socket_sub_option(int socket, int option);
+
+/*
+UTILS
+*/
+void udtcp_set_string_infos(udtcp_infos* infos, struct sockaddr_in* addr);
 
 /*
 --------------------------------------------------------------------------------
-TCP COMMON
+COMMON
 --------------------------------------------------------------------------------
 */
 
-size_t udtcp_tcp_send_formated(const udtcp_tcp_infos_t* infos, const void *in_data, size_t size);
-size_t udtcp_tcp_send(const udtcp_tcp_infos_t* infos, const void *in_data, size_t size);
+/**
+ * @brief send in tcp a data
+ *
+ * @param infos             infos of receiver
+ * @param data              data to transmit
+ * @param data_size         size of data
+ * @return ssize_t          number of bytes sent if success or -1 for error
+ */
+ssize_t udtcp_send_tcp(udtcp_infos* infos,
+    const void* data, uint32_t data_size);
+
+/**
+ * @brief send in udp a data to server udp
+ *
+ * @param infos             infos of receiver
+ * @param data              data to transmit
+ * @param data_size         size of data
+ * @return ssize_t          number of bytes sent if success or -1 for error
+ */
+ssize_t udtcp_send_udp(udtcp_infos* infos,
+    const void* data, uint32_t data_size);
 
 /*
 --------------------------------------------------------------------------------
-TCP CLIENT
+CLIENT
 --------------------------------------------------------------------------------
 */
 
-enum e_receive udtcp_tcp_receive(udtcp_tcp_client_t* in_tcp, void **out_data, size_t *out_data_size, long timeout);
-int udtcp_tcp_client_create(uint16_t port, udtcp_tcp_client_t* out_client);
-int udtcp_tcp_client_connect(udtcp_tcp_client_t* in_out_client, const char* in_hostname, uint16_t port, long timeout);
+/**
+ * @brief create client with tcp and udp server socket and udp client socket
+ *
+ * @param hostname          define hostname of bind socket
+ * @param tcp_port          define tcp port
+ * @param udp_server_port   define udp server port, set zero to get
+ *                          an ephemeral port
+ * @param udp_client_port   define udp client port, set zero to get
+ *                          an ephemeral port
+ * @param out_server        new udtcp_server_t structure
+ * @return int              zero if success or -1 for error
+ */
+int udtcp_create_client(const char* hostname,
+    uint16_t tcp_port, uint16_t udp_server_port, uint16_t udp_client_port,
+    udtcp_client** out_client);
+
+/**
+ * @brief close all sockets, delete client, set at NULL pointer
+ *
+ * @param addr_client       address of client
+ */
+void udtcp_delete_client(udtcp_client** addr_client);
+
+/**
+ * @brief
+ * @param client            client pointer
+ * @param server_hostname   hostname of server
+ * @param server_tcp_port   tcp port of server
+ * @param timeout           in milisseconds
+ * @return int
+ */
+
+/**
+ * @brief connect client to server by transmitting udp information
+ *
+ * @param client            client pointer
+ * @param server_hostname   hostname of server
+ * @param server_tcp_port   tcp port of server
+ * @param timeout           in milisseconds
+ * @return enum udtcp_connect_e
+ */
+enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
+    const char* server_hostname, uint16_t server_tcp_port, long timeout);
+
+/**
+ * @brief poll receive from server sockets
+ *
+ * @param client            client pointer
+ * @param timeout           in milisseconds
+ * @return enum udtcp_poll_e
+ */
+enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout);
 
 /*
 --------------------------------------------------------------------------------
-TCP SERVER
+SERVER
 --------------------------------------------------------------------------------
 */
 
-int udtcp_tcp_server_create(const char* in_hostname, uint16_t port, udtcp_tcp_server_t* out_server);
-int udtcp_tcp_server_accept(udtcp_tcp_server_t* in_server, udtcp_tcp_infos_t** out_client, long timeout);
-int udtcp_tcp_server_poll(udtcp_tcp_server_t* in_server, long timeout);
-void udtcp_tcp_server_poll_loop(udtcp_tcp_server_t* in_server, long timeout);
-void udtcp_tcp_server_poll_break_loop(udtcp_tcp_server_t* in_server);
-void udtcp_tcp_server_destroy(udtcp_tcp_server_t *in_server);
+/**
+ * @brief create server with tcp and udp server socket and client udp socket
+ *
+ * @param hostname          define hostname of bind socket
+ * @param tcp_port          define tcp port
+ * @param udp_server_port   define udp server port, set zero to get
+ *                          an ephemeral port
+ * @param udp_client_port   define udp client port, set zero to get
+ *                          an ephemeral port
+ * @param out_server        new udtcp_server_t structure
+ * @return int              zero if success or -1 for errors
+ */
+int udtcp_create_server(const char* hostname,
+    uint16_t tcp_port, uint16_t udp_server_port, uint16_t udp_client_port,
+    udtcp_server** out_server);
 
-/*
---------------------------------------------------------------------------------
-UDP SERVER
---------------------------------------------------------------------------------
-*/
+/**
+ * @brief close all sockets, delete server, set at NULL pointer
+ *
+ * @param addr_server       address of server
+ */
+void udtcp_delete_server(udtcp_server** addr_server);
 
-// int udtcp_udp_server_create(const char *in_hostname, uint16_t port, udtcp_udp_t *out_server);
+/**
+ * @brief poll accept and receive from client sockets
+ *
+ * @param server            server pointer
+ * @param timeout           in milisseconds
+ * @return e_udtcp_poll     zero if success or -1 for errors
+ */
+enum udtcp_poll_e udtcp_server_poll(udtcp_server* server, long timeout);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /* _UDTCP_H_ */
