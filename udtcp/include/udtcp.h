@@ -76,6 +76,9 @@ enum udtcp_poll_e
 #ifndef UDTCP_MAX_CONNECTION
 #define UDTCP_MAX_CONNECTION 42
 #endif
+#ifndef UDTCP_POLL_LOOP_TIMEOUT
+#define UDTCP_POLL_LOOP_TIMEOUT 180000
+#endif
 
 /* logs */
 #ifdef DEBUG
@@ -180,6 +183,9 @@ struct udtcp_server_s
 
     size_t                  count_id;
 
+    pthread_t               poll_thread;
+    int                     poll_loop;
+
     uint8_t*                buffer_data;
     size_t                  buffer_size;
     void*                   user_data;
@@ -208,6 +214,9 @@ struct udtcp_client_s
     void                    (*log_callback)
         (struct udtcp_client_s* client,
          enum udtcp_log_level_e level, const char* str);
+
+    pthread_t               poll_thread;
+    int                     poll_loop;
 
     uint8_t*                buffer_data;
     size_t                  buffer_size;
@@ -316,6 +325,9 @@ enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
  */
 enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout);
 
+int udtcp_start_client(udtcp_client* client);
+void udtcp_stop_client(udtcp_client* client);
+
 /*
 --------------------------------------------------------------------------------
 SERVER
@@ -353,6 +365,9 @@ void udtcp_delete_server(udtcp_server** addr_server);
  * @return e_udtcp_poll     zero if success or -1 for errors
  */
 enum udtcp_poll_e udtcp_server_poll(udtcp_server* server, long timeout);
+
+int udtcp_start_server(udtcp_server* server);
+void udtcp_stop_server(udtcp_server* server);
 
 #ifdef __cplusplus
 }

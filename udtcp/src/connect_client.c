@@ -7,31 +7,56 @@
 
 #include "udtcp.h"
 
-static void prepare_new_tcp_socket(udtcp_client* client)
+static void close_tcp_socket(udtcp_client* client)
 {
+    /* send '\0' to the server */
+    shutdown(client->client_infos->tcp_socket, SHUT_RDWR);
     /* close old socket */
     close(client->client_infos->tcp_socket);
+}
+
+static int create_tcp_socket(udtcp_client* client)
+{
     /* create tcp socket */
     client->client_infos->tcp_socket = socket(AF_INET,
                                               SOCK_STREAM, IPPROTO_TCP);
     if (client->client_infos->tcp_socket == -1)
+    {
         UDTCP_LOG_ERROR(client, "socket: %s", strerror(errno));
+        return (-1);
+    }
     /* active re use addr in socket */
     int yes = 1;
     if (setsockopt(client->client_infos->tcp_socket,
         SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
+    {
         UDTCP_LOG_ERROR(client, "setsockopt: %s", strerror(errno));
+        return (-1);
+    }
 #ifdef SO_REUSEPORT
-    setsockopt(client->client_infos->tcp_socket,
-        SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int));
+    if (setsockopt(client->client_infos->tcp_socket,
+        SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) == -1)
+    {
+        UDTCP_LOG_ERROR(client, "setsockopt: %s", strerror(errno));
+        return (-1);
+    }
 #endif
     /* add non block option */
-    udtcp_socket_add_option(client->client_infos->tcp_socket, O_NONBLOCK);
+    if (udtcp_socket_add_option(client->client_infos->tcp_socket,
+        O_NONBLOCK) == -1)
+    {
+        UDTCP_LOG_ERROR(client, "fcntl: %s", strerror(errno));
+        return (-1);
+    }
     /* bind tcp port into socket */
     if (bind(client->client_infos->tcp_socket,
         (struct sockaddr*)&(client->client_infos->tcp_addr),
         sizeof(struct sockaddr_in)) != 0)
+    {
         UDTCP_LOG_ERROR(client, "setsockopt: %s", strerror(errno));
+        return (-1);
+    }
+    return (0);
 }
 
 static int initialize_connection(udtcp_client* client)
@@ -48,14 +73,12 @@ static int initialize_connection(udtcp_client* client)
     ret_poll = poll(&poll_fd, 1, -1);
     if (ret_poll < 0)
     {
-        prepare_new_tcp_socket(client);
         UDTCP_LOG_ERROR(client, "poll: fail");
         return (UDTCP_CONNECT_ERROR);
     }
     /* poll timeout */
     else if (ret_poll == 0)
     {
-        prepare_new_tcp_socket(client);
         UDTCP_LOG_ERROR(client, "poll: timeout");
         errno = ETIMEDOUT;
         return (UDTCP_CONNECT_ERROR);
@@ -68,14 +91,12 @@ static int initialize_connection(udtcp_client* client)
     /* socket is close */
     if (ret_recv == 0)
     {
-        prepare_new_tcp_socket(client);
         UDTCP_LOG_ERROR(client, "recv: close");
         return (UDTCP_CONNECT_ERROR);
     }
     /* bad size of return */
     if (ret_recv != sizeof(udtcp_infos))
     {
-        prepare_new_tcp_socket(client);
         if (ret_recv != 1)
         {
             UDTCP_LOG_ERROR(client, "recv: fail");
@@ -95,14 +116,12 @@ static int initialize_connection(udtcp_client* client)
     /* socket is close */
     if (ret_recv == 0)
     {
-        prepare_new_tcp_socket(client);
         UDTCP_LOG_ERROR(client, "send: close");
         return (UDTCP_CONNECT_ERROR);
     }
     /* bad size of return */
     if (ret_send != sizeof(udtcp_infos))
     {
-        prepare_new_tcp_socket(client);
         UDTCP_LOG_ERROR(client, "recv: fail");
         return (UDTCP_CONNECT_ERROR);
     }
@@ -118,6 +137,12 @@ enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
     int                     ret_poll;
     enum udtcp_connect_e    ret_initialize_connection;
 
+    /* create_tcp_socket */
+    if (create_tcp_socket(client) == -1)
+    {
+        close_tcp_socket(client);
+        return (UDTCP_CONNECT_ERROR);
+    }
     /* get host list by name */
     host_entity = gethostbyname(hostname);
     if (host_entity == NULL)
@@ -152,7 +177,7 @@ enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
             ret_poll = poll(&poll_fd, 1, timeout);
             if (ret_poll < 0)
             {
-                prepare_new_tcp_socket(client);
+                close_tcp_socket(client);
                 UDTCP_LOG_ERROR(client, "poll: fail \"%s\"",
                     strerror(errno));
                 return (UDTCP_CONNECT_ERROR);
@@ -160,7 +185,7 @@ enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
             /* poll timeout */
             else if (ret_poll == 0)
             {
-                prepare_new_tcp_socket(client);
+                close_tcp_socket(client);
                 errno = ETIMEDOUT;
                 UDTCP_LOG_INFO(client, "poll: timeout \"%s\"", strerror(errno));
                 return (UDTCP_CONNECT_TIMEOUT);
@@ -168,7 +193,7 @@ enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
             /* still not connect */
             else if (poll_fd.revents & POLLHUP)
             {
-                prepare_new_tcp_socket(client);
+                close_tcp_socket(client);
                 errno = ECONNREFUSED;
                 UDTCP_LOG_ERROR(client, "connect: fail \"%s\"",
                     strerror(errno));
@@ -178,7 +203,7 @@ enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
         /* bad error */
         else
         {
-            prepare_new_tcp_socket(client);
+            close_tcp_socket(client);
             UDTCP_LOG_ERROR(client, "connect: fail \"%s\"", strerror(errno));
             return (UDTCP_CONNECT_ERROR);
         }
@@ -187,7 +212,10 @@ enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
     /* initialize the connection */
     ret_initialize_connection = initialize_connection(client);
     if (ret_initialize_connection != UDTCP_CONNECT_SUCCESS)
+    {
+        close_tcp_socket(client);
         return (ret_initialize_connection);
+    }
 
     /* replace addr */
     client->server_infos->tcp_addr.sin_addr.s_addr = host_addr;

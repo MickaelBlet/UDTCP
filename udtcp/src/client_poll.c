@@ -7,16 +7,15 @@
 
 static int receive_tcp(udtcp_client* client, udtcp_infos* server_infos)
 {
-    ssize_t         ret_recv;
-    uint8_t*        new_buffer_data;
-    uint32_t        buffer_size = 0;
-    uint32_t        data_size;
     struct pollfd   poll_fd;
+    ssize_t         ret_recv;
+    uint32_t        buffer_size;
+    uint32_t        data_size;
     int             ret_poll;
+    uint8_t*        new_buffer_data;
 
     /* receive data size */
-    ret_recv = recv(server_infos->tcp_socket,
-                    &data_size, sizeof(uint32_t), 0);
+    ret_recv = recv(server_infos->tcp_socket, &data_size, sizeof(uint32_t), 0);
     /* recv error */
     if (ret_recv < 0)
         return (-1);
@@ -28,9 +27,9 @@ static int receive_tcp(udtcp_client* client, udtcp_infos* server_infos)
     if (ret_recv != sizeof(uint32_t))
     {
         UDTCP_LOG_ERROR(client,
-            "Receive from %s:%hu: bad size",
+            "Receive from TCP %s:%u: recv: bad size",
             server_infos->ip,
-            server_infos->tcp_port);
+            (unsigned int)server_infos->tcp_port);
         return (-1);
     }
 
@@ -41,8 +40,7 @@ static int receive_tcp(udtcp_client* client, udtcp_infos* server_infos)
         /* malloc error */
         if (new_buffer_data == NULL)
         {
-            UDTCP_LOG_ERROR(client,
-                "malloc: %s", strerror(errno));
+            UDTCP_LOG_ERROR(client, "malloc: %s", strerror(errno));
             return (-1);
         }
         /* delete last buffer */
@@ -53,34 +51,63 @@ static int receive_tcp(udtcp_client* client, udtcp_infos* server_infos)
         client->buffer_size = data_size;
     }
 
-    do
+    /* receive data */
+    ret_recv = recv(server_infos->tcp_socket,
+        client->buffer_data,
+        data_size, 0);
+    /* recv error */
+    if (ret_recv < 0)
+        return (-1);
+    /* recv close */
+    if (ret_recv == 0)
+        return (0);
+    /* recv not receive all data */
+    if (ret_recv != data_size)
     {
-        poll_fd.fd = server_infos->tcp_socket;
-        poll_fd.events = POLLIN;
-        ret_poll = poll(&poll_fd, 1, 60 * 3 * 1000);
-        if (ret_poll < 0)
+        buffer_size = ret_recv;
+        while (buffer_size != data_size)
         {
-            UDTCP_LOG_ERROR(client, "poll(): failed");
-            return (-1);
+            poll_fd.fd = server_infos->tcp_socket;
+            poll_fd.events = POLLIN;
+            /* wait action from tcp socket */
+            ret_poll = poll(&poll_fd, 1, -1);
+            if (ret_poll < 0)
+            {
+                UDTCP_LOG_ERROR(client,
+                    "Receive from TCP %s:%u: poll: failed",
+                    server_infos->ip,
+                    (unsigned int)server_infos->tcp_port);
+                return (-1);
+            }
+            else if (ret_poll == 0)
+            {
+                UDTCP_LOG_ERROR(client,
+                    "Receive from TCP %s:%u: poll: timeout",
+                    server_infos->ip,
+                    (unsigned int)server_infos->tcp_port);
+                return (-1);
+            }
+            /* receive end of data */
+            ret_recv = recv(server_infos->tcp_socket,
+                client->buffer_data + buffer_size,
+                data_size - buffer_size, 0);
+            /* recv error */
+            if (ret_recv < 0)
+            {
+                UDTCP_LOG_ERROR(client,
+                    "Receive from TCP %s:%u: recv: error",
+                    server_infos->ip,
+                    (unsigned int)server_infos->tcp_port);
+                return (-1);
+            }
+            /* recv close */
+            if (ret_recv == 0)
+                return (0);
+            buffer_size += ret_recv;
         }
-        else if (ret_poll == 0)
-        {
-            UDTCP_LOG_ERROR(client, "poll(): timeout");
-            return (-1);
-        }
-        /* receive data */
-        ret_recv = recv(server_infos->tcp_socket,
-                        client->buffer_data + buffer_size,
-                        data_size - buffer_size, 0);
-        /* recv error */
-        if (ret_recv < 0)
-            return (-1);
-        /* recv close */
-        if (ret_recv == 0)
-            return (0);
-        buffer_size += ret_recv;
-    } while (buffer_size != data_size);
+    }
 
+    /* use callback if defined */
     if (client->receive_tcp_callback != NULL)
     {
         client->receive_tcp_callback(client, server_infos,
@@ -99,48 +126,54 @@ static int receive_udp(udtcp_client* client, udtcp_infos* server_infos)
     int                 ret_recv;
     struct sockaddr_in  addr;
 
+    /* receive data size */
     ret_recv = recvfrom(client->client_infos->udp_server_socket,
         &data_size, sizeof(uint32_t),
         MSG_PEEK,
         (struct sockaddr*)&addr,
         &len_addr);
+    /* recv error */
     if (ret_recv < 0)
         return (-1);
+    /* recv close */
     if (ret_recv == 0)
         return (0);
 
+    /* not a size of data */
     if (ret_recv != sizeof(uint32_t))
     {
         UDTCP_LOG_ERROR(client,
-            "[%lu]%s:%hu UDP recv: bad size",
-            server_infos->id,
-            server_infos->hostname,
-            server_infos->udp_server_port);
+            "Receive from UDP %s:%u: bad size",
+            inet_ntoa(addr.sin_addr),
+            (unsigned int)htons(addr.sin_port));
         return (-1);
     }
 
-    if (data_size + sizeof(uint32_t) > client->buffer_size)
+    /* need reallocate buffer */
+    if (sizeof(uint32_t) + data_size > client->buffer_size)
     {
         new_buffer_data = (uint8_t*)malloc(data_size + sizeof(uint32_t));
+        /* malloc error */
         if (new_buffer_data == NULL)
         {
-            UDTCP_LOG_ERROR(client,
-                "[%lu]%s:%hu TCP recv: size too big (%u)",
-                server_infos->id,
-                server_infos->hostname,
-                server_infos->udp_server_port, data_size);
+            UDTCP_LOG_ERROR(client, "malloc: %s", strerror(errno));
             return (-1);
         }
+        /* delete last buffer */
         if (client->buffer_data != NULL)
             free(client->buffer_data);
+        /* set new buffer */
         client->buffer_data = new_buffer_data;
         client->buffer_size = data_size + sizeof(uint32_t);
     }
 
+    len_addr = sizeof(struct sockaddr_in);
+    /* receive data_size and data */
     ret_recv = recvfrom(client->client_infos->udp_server_socket,
         client->buffer_data, sizeof(uint32_t) + data_size, 0,
         (struct sockaddr*)&addr,
         &len_addr);
+    /* recv error */
     if (ret_recv < 0)
     {
         UDTCP_LOG_ERROR(client,
@@ -150,6 +183,7 @@ static int receive_udp(udtcp_client* client, udtcp_infos* server_infos)
             server_infos->udp_server_port);
         return (-1);
     }
+    /* recv close */
     if (ret_recv == 0)
     {
         UDTCP_LOG_INFO(client,
@@ -159,6 +193,7 @@ static int receive_udp(udtcp_client* client, udtcp_infos* server_infos)
             server_infos->udp_server_port);
         return (0);
     }
+    /* recv bad size */
     if (ret_recv - sizeof(uint32_t) != data_size)
     {
         UDTCP_LOG_ERROR(client,
@@ -169,6 +204,7 @@ static int receive_udp(udtcp_client* client, udtcp_infos* server_infos)
         return (-1);
     }
 
+    /* use callback if defined */
     if (client->receive_udp_callback != NULL)
     {
         client->receive_udp_callback(client, server_infos,
@@ -180,8 +216,12 @@ static int receive_udp(udtcp_client* client, udtcp_infos* server_infos)
 
 static void disconnect(udtcp_client* client, udtcp_infos* server_infos)
 {
-    shutdown(client->client_infos->tcp_socket, SHUT_RDWR);
-    close(client->client_infos->tcp_socket);
+    /* send '\0' to the server */
+    if (shutdown(client->client_infos->tcp_socket, SHUT_RDWR) == -1)
+        UDTCP_LOG_ERROR(client, "shutdown: fail");
+    /* close tcp socket */
+    if (close(client->client_infos->tcp_socket) == -1)
+        UDTCP_LOG_ERROR(client, "close: fail");
     client->client_infos->tcp_socket = -1;
     UDTCP_LOG_INFO(client,
         "Disconnect ip: %s, "
@@ -192,6 +232,7 @@ static void disconnect(udtcp_client* client, udtcp_infos* server_infos)
         (unsigned int)server_infos->tcp_port,
         (unsigned int)server_infos->udp_server_port,
         (unsigned int)server_infos->udp_client_port);
+    /* use callback if defined */
     if (client->disconnect_callback != NULL)
         client->disconnect_callback(client, server_infos);
 }
@@ -202,7 +243,9 @@ enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout)
     int     ret_poll;
     int     ret_receive;
 
+    /* wait action from sockets */
     ret_poll = poll(client->poll_fds, client->poll_nfds, timeout);
+    /* error or receive signal */
     if (ret_poll < 0)
     {
         if (errno == EINTR)
@@ -210,34 +253,45 @@ enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout)
         UDTCP_LOG_ERROR(client, "poll: fail \"%s\"", strerror(errno));
         return (UDTCP_POLL_ERROR);
     }
+    /* timeout */
     if (ret_poll == 0)
     {
         UDTCP_LOG_INFO(client, "poll: timeout");
         return (UDTCP_POLL_TIMEOUT);
     }
 
+    /* foreach socket */
     for (i = 0; i < client->poll_nfds; ++i)
     {
         /* not active fd */
         if (!client->poll_fds[i].revents)
             continue;
 
+        /* bad revent */
         if (!(client->poll_fds[i].revents & POLLIN))
+        {
+            UDTCP_LOG_ERROR(client, "poll: revent failed");
             return (UDTCP_POLL_ERROR);
+        }
 
         /* is tcp socket */
         if (client->poll_fds[i].fd == client->client_infos->tcp_socket)
         {
             ret_receive = receive_tcp(client, client->server_infos);
+            while (ret_receive > 0)
+                ret_receive = receive_tcp(client, client->server_infos);
+            /* error socket */
             if (ret_receive == -1)
             {
+                /* not nonblock errno */
                 if (errno != EWOULDBLOCK)
                 {
                     disconnect(client, client->server_infos);
                     return (UDTCP_POLL_ERROR);
                 }
             }
-            if (ret_receive == 0)
+            /* close socket */
+            else if (ret_receive == 0)
             {
                 disconnect(client, client->server_infos);
                 return (UDTCP_POLL_ERROR);

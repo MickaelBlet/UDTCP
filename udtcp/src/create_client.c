@@ -37,6 +37,14 @@ int udtcp_create_client(const char* hostname,
     /* clean memory */
     memset(new_client, 0, sizeof(udtcp_client));
 
+    /* init send mutex */
+    if (pthread_mutex_init(&(new_client->send.mutex), NULL) != 0)
+    {
+        udtcp_delete_client(&new_client);
+        return (-1);
+    }
+
+    /* set shorcut infos pointer */
     new_client->client_infos = &(new_client->infos[0]);
     new_client->server_infos = &(new_client->infos[1]);
 
@@ -76,17 +84,9 @@ int udtcp_create_client(const char* hostname,
     }
 
 #ifdef SO_REUSEPORT
-    if (setsockopt(new_client->client_infos->tcp_socket, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) == -1)
-    {
-        udtcp_delete_client(&new_client);
-        return (-1);
-    }
-    if (setsockopt(new_client->client_infos->udp_server_socket, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) == -1)
-    {
-        udtcp_delete_client(&new_client);
-        return (-1);
-    }
-    if (setsockopt(new_client->client_infos->udp_client_socket, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) == -1)
+    if (setsockopt(new_client->client_infos->tcp_socket, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) == -1
+     || setsockopt(new_client->client_infos->udp_server_socket, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) == -1
+     || setsockopt(new_client->client_infos->udp_server_socket, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) == -1)
     {
         udtcp_delete_client(&new_client);
         return (-1);
@@ -168,14 +168,6 @@ int udtcp_create_client(const char* hostname,
     new_client->poll_fds[1].events = POLLIN;
     new_client->poll_nfds = 2;
 
-    /* init send mutex */
-    new_client->server_infos->send = &(new_client->send);
-    if (pthread_mutex_init(&(new_client->server_infos->send->mutex), NULL) != 0)
-    {
-        udtcp_delete_client(&new_client);
-        return (-1);
-    }
-
     /* copy infos */
     new_client->client_infos->id = 0;
     memcpy(new_client->client_infos->hostname, host_entity->h_name, strlen(host_entity->h_name));
@@ -192,6 +184,9 @@ int udtcp_create_client(const char* hostname,
     /* initialize buffer */
     new_client->buffer_data = NULL;
     new_client->buffer_size = 0;
+
+    /* it's recreate at connection */
+    close(new_client->client_infos->tcp_socket);
 
     *out_client = new_client;
 

@@ -3,5 +3,5 @@
 *.log
 *.o
 .*
-/bin
-/lib
+**/bin
+**/lib

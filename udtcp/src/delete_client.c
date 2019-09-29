@@ -17,6 +17,10 @@ void udtcp_delete_client(udtcp_client** addr_client)
     if ((*addr_client)->client_infos->udp_client_socket != -1
         && close((*addr_client)->client_infos->udp_client_socket) == -1)
         UDTCP_LOG_ERROR((*addr_client), "close: fail");
+    if ((*addr_client)->client_infos->tcp_socket != -1
+        && (*addr_client)->disconnect_callback != NULL)
+        (*addr_client)->disconnect_callback((*addr_client),
+            (*addr_client)->server_infos);
     pthread_mutex_destroy(&((*addr_client)->send.mutex));
     free(*addr_client);
     *addr_client = NULL;

@@ -12,7 +12,7 @@ int udtcp_create_server(const char* hostname,
     uint16_t tcp_port, uint16_t udp_server_port, uint16_t udp_client_port,
     udtcp_server** out_server)
 {
-    socklen_t           len_addr = sizeof(struct sockaddr_in);
+    socklen_t           len_addr;
     udtcp_server*       new_server;
     struct hostent*     host_entity;
     in_addr_t           host_addr;

@@ -26,7 +26,8 @@ void udtcp_delete_server(udtcp_server** addr_server)
         if ((*addr_server)->poll_fds[i].fd != -1
             && close((*addr_server)->poll_fds[i].fd) == -1)
             UDTCP_LOG_ERROR((*addr_server), "close: fail");
-        if ((*addr_server)->disconnect_callback != NULL)
+        if ((*addr_server)->poll_fds[i].fd != -1
+            && (*addr_server)->disconnect_callback != NULL)
             (*addr_server)->disconnect_callback((*addr_server),
                 &((*addr_server)->infos[i]));
     }

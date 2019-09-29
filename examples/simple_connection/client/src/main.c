@@ -49,7 +49,8 @@ static void connect_callback(udtcp_client* client, udtcp_infos *infos)
 
 static void disconnect_callback(udtcp_client* client, udtcp_infos *infos)
 {
-    int* is_connect = (int*)(client->user_data);
+    int* is_connect = client->user_data;
+
     *is_connect = UDTCP_CONNECT_ERROR;
     fprintf(stdout,
         "DISCONNECT CALLBACK "
@@ -106,7 +107,7 @@ int main(void)
     g_is_run = 1;
     ini_signal();
 
-    if (udtcp_create_client("127.0.0.1", 0, 0, 0, &client) == -1)
+    if (udtcp_create_client("localhost", 0, 0, 0, &client) == -1)
     {
         fprintf(stderr, "udtcp_create_client: %s\n", strerror(errno));
         return (1);
@@ -122,18 +123,25 @@ int main(void)
     /* set user_data */
     client->user_data = &is_connect;
 
-    while (g_is_run == 1 && is_connect != UDTCP_CONNECT_SUCCESS)
+    while (g_is_run)
     {
-        is_connect = udtcp_connect_client(client, "127.0.0.1", 4242, 5000);
-        if (is_connect != UDTCP_CONNECT_SUCCESS)
-            sleep(CLIENT_WAIT_BETWEEN_TRY_CONNECTION);
-    }
+        /* try to connect */
+        while (g_is_run && is_connect != UDTCP_CONNECT_SUCCESS)
+        {
+            is_connect = udtcp_connect_client(client, "127.0.0.1", 4242, 5000);
+            if (is_connect != UDTCP_CONNECT_SUCCESS)
+                sleep(CLIENT_WAIT_BETWEEN_TRY_CONNECTION);
+        }
 
-    while (g_is_run && is_connect == UDTCP_CONNECT_SUCCESS)
-    {
-        ret_poll = udtcp_client_poll(client, CLIENT_POLL_TIMEOUT);
-        if (ret_poll == UDTCP_POLL_SIGNAL || ret_poll == UDTCP_POLL_ERROR)
-            break;
+        /* create new poll thread */
+        udtcp_start_client(client);
+
+        /* wait */
+        while (g_is_run && is_connect == UDTCP_CONNECT_SUCCESS)
+            sleep(1);
+
+        /* kill and join poll thread */
+        udtcp_stop_client(client);
     }
 
     udtcp_delete_client(&client);
