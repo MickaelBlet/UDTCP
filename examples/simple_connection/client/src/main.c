@@ -67,14 +67,14 @@ static void disconnect_callback(udtcp_client* client, udtcp_infos *infos)
 static void receive_tcp_callback(udtcp_client* client, udtcp_infos* infos, void* data, size_t data_size)
 {
     (void)client;
-    fprintf(stdout,
-        "RECEIVE TCP CALLBACK "
-        "ip: %s, "
-        "tcp port: %hu > \"%.*s\"\n",
-        infos->ip,
-        infos->tcp_port,
-        (int)data_size,
-        (const char *)data);
+    // fprintf(stdout,
+    //     "RECEIVE TCP CALLBACK "
+    //     "ip: %s, "
+    //     "tcp port: %hu > \"%.*s\"\n",
+    //     infos->ip,
+    //     infos->tcp_port,
+    //     (int)data_size,
+    //     (const char *)data);
 }
 
 static void receive_udp_callback(udtcp_client* client, udtcp_infos* infos, void* data, size_t data_size)
@@ -107,7 +107,7 @@ int main(void)
     g_is_run = 1;
     ini_signal();
 
-    if (udtcp_create_client("localhost", 0, 0, 0, &client) == -1)
+    if (udtcp_create_client("0.0.0.0", 0, 0, 0, &client) == -1)
     {
         fprintf(stderr, "udtcp_create_client: %s\n", strerror(errno));
         return (1);
@@ -138,7 +138,9 @@ int main(void)
 
         /* wait */
         while (g_is_run && is_connect == UDTCP_CONNECT_SUCCESS)
+        {
             sleep(1);
+        }
 
         /* kill and join poll thread */
         udtcp_stop_client(client);

@@ -1,7 +1,8 @@
-#include <stdlib.h>     /* malloc, free */
-#include <unistd.h>     /* close */
-#include <string.h>     /* strerror */
+#include <arpa/inet.h>  /* inet_ntoa */
 #include <errno.h>      /* errno */
+#include <stdlib.h>     /* malloc, free */
+#include <string.h>     /* strerror */
+#include <unistd.h>     /* close */
 
 #include "udtcp.h"
 
@@ -73,6 +74,8 @@ static int receive_tcp(udtcp_client* client, udtcp_infos* server_infos)
             ret_poll = poll(&poll_fd, 1, -1);
             if (ret_poll < 0)
             {
+                if (errno == EINTR)
+                    return (-1);
                 UDTCP_LOG_ERROR(client,
                     "Receive from TCP %s:%u: poll: failed",
                     server_infos->ip,

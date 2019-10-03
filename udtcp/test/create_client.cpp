@@ -11,16 +11,11 @@ using ::testing::Return;
 
 #define DGTEST_TEST(a, b) GTEST_TEST(a, DISABLED_##b)
 
-using decltype_gethostbyname = decltype(gethostbyname);
-MOCK_WEAK_METHOD1(gethostbyname, decltype_gethostbyname);
-using decltype_socket = decltype(socket);
-MOCK_WEAK_METHOD3(socket, decltype_socket);
-using decltype_setsockopt = decltype(setsockopt);
-MOCK_WEAK_METHOD5(setsockopt, decltype_setsockopt);
-using decltype_bind = decltype(bind);
-MOCK_WEAK_METHOD3(bind, decltype_bind);
-using decltype_getsockname = decltype(getsockname);
-MOCK_WEAK_METHOD3(getsockname, decltype_getsockname);
+MOCK_WEAK_DECLTYPE_METHOD1(gethostbyname);
+MOCK_WEAK_DECLTYPE_METHOD3(socket);
+MOCK_WEAK_DECLTYPE_METHOD5(setsockopt);
+MOCK_WEAK_DECLTYPE_METHOD3(bind);
+MOCK_WEAK_DECLTYPE_METHOD3(getsockname);
 
 GTEST_TEST(create_client, success)
 {
@@ -29,18 +24,18 @@ GTEST_TEST(create_client, success)
     instanceHostent.h_addr_list = h_addr_list;
     udtcp_client *out_client;
 
-    MOCK_WEAK_EXPECT_CALL(gethostbyname, gethostbyname("127.0.0.42"))
+    MOCK_WEAK_EXPECT_CALL(gethostbyname, ("127.0.0.42"))
     .WillOnce(Return((struct hostent *)&instanceHostent));
 
-    MOCK_WEAK_EXPECT_CALL(socket, socket(AF_INET, SOCK_STREAM, IPPROTO_TCP))
+    MOCK_WEAK_EXPECT_CALL(socket, (AF_INET, SOCK_STREAM, IPPROTO_TCP))
     .WillRepeatedly(Return(0));
-    MOCK_WEAK_EXPECT_CALL(socket, socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))
+    MOCK_WEAK_EXPECT_CALL(socket, (AF_INET, SOCK_DGRAM, IPPROTO_UDP))
     .WillRepeatedly(Return(0));
-    MOCK_WEAK_EXPECT_CALL(setsockopt, setsockopt(_, _, _, _, _))
+    MOCK_WEAK_EXPECT_CALL(setsockopt, (_, _, _, _, _))
     .WillRepeatedly(Return(0));
-    MOCK_WEAK_EXPECT_CALL(bind, bind(_, _, _))
+    MOCK_WEAK_EXPECT_CALL(bind, (_, _, _))
     .WillRepeatedly(Return(0));
-    MOCK_WEAK_EXPECT_CALL(getsockname, getsockname(_, _, _))
+    MOCK_WEAK_EXPECT_CALL(getsockname, (_, _, _))
     .WillRepeatedly(Return(0));
 
     EXPECT_EQ(0, udtcp_create_client("127.0.0.42", 4242, 4243, 4444, &out_client));

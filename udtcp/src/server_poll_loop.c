@@ -1,4 +1,6 @@
+#include <pthread.h>
 #include <signal.h>
+#include <bits/sigthread.h>
 
 #include "udtcp.h"
 

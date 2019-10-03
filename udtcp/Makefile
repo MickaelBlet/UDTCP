@@ -96,7 +96,7 @@ TEST_DEPENDENCIES		=	$(LIBRARY_DIRECTORY)lib$(LIBRARY_NAME)-debug.a
 include ../module.mk
 
 exe_test:	test
-	$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n"; \
+	@$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n";\
 	$(bin) || exit;)
 
 PHONY:

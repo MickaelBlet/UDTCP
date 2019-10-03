@@ -21,9 +21,9 @@ GTEST_TEST(udtcp, client_poll_fail_1)
     EXPECT_CALL(MOCK_WEAK_INSTANCE(poll), poll(_, _, 42))
     .WillRepeatedly(Return(-1));
 
-    MOCK_WEAK_INSTANCE(poll).isActive = true;
+    MOCK_WEAK_ENABLE(poll);
     EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
-    MOCK_WEAK_INSTANCE(poll).isActive = false;
+    MOCK_WEAK_DISABLE(poll);
 }
 
 GTEST_TEST(udtcp, client_poll_timeout)
@@ -35,9 +35,9 @@ GTEST_TEST(udtcp, client_poll_timeout)
     EXPECT_CALL(MOCK_WEAK_INSTANCE(poll), poll(_, _, 42))
     .WillOnce(Return(0));
 
-    MOCK_WEAK_INSTANCE(poll).isActive = true;
+    MOCK_WEAK_ENABLE(poll);
     EXPECT_EQ(UDTCP_POLL_TIMEOUT, udtcp_client_poll(client, 42));
-    MOCK_WEAK_INSTANCE(poll).isActive = false;
+    MOCK_WEAK_DISABLE(poll);
 }
 
 GTEST_TEST(udtcp, client_poll_success)

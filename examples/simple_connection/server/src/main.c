@@ -44,6 +44,9 @@ static void connect_callback(struct udtcp_server_s* server, udtcp_infos* infos)
         infos->tcp_port,
         infos->udp_server_port,
         infos->udp_client_port);
+
+    while (g_is_run)
+        udtcp_send_tcp(infos, "wooot", 6);
 }
 
 static void disconnect_callback(struct udtcp_server_s* server, udtcp_infos* infos)
