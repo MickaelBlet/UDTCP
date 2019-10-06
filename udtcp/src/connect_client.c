@@ -87,7 +87,7 @@ static int initialize_connection(udtcp_client* client)
     /* receive addr from server */
     ret_recv = recv(client->client_infos->tcp_socket,
         client->server_infos,
-        sizeof(udtcp_infos), 0);
+        sizeof(udtcp_infos) + 1, 0);
     /* socket is close */
     if (ret_recv == 0)
     {

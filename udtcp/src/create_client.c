@@ -181,6 +181,9 @@ int udtcp_create_client(const char* hostname,
     new_client->receive_udp_callback = NULL;
     new_client->log_callback = NULL;
 
+    /* initialize poll loop */
+    new_client->poll_loop = 0;
+
     /* initialize buffer */
     new_client->buffer_data = NULL;
     new_client->buffer_size = 0;

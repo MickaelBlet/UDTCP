@@ -1,12 +1,12 @@
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "udtcp.h"
 
 #define SERVER_POLL_TIMEOUT (3 * 60 * 1000) /* 3 minutes */
 
-static udtcp_server* g_server;
 static int g_is_run = 0;
 
 static void signalStop(int sig_number)
@@ -20,15 +20,14 @@ static void ini_signal(void)
     struct sigaction sig_action;
 
     sig_action.sa_handler = &signalStop;
-    sigemptyset (&sig_action.sa_mask);
+    sigemptyset(&sig_action.sa_mask);
     sig_action.sa_flags = 0;
 
     /* catch signal term actions */
-    sigaction (SIGABRT, &sig_action, NULL);
-    sigaction (SIGINT,  &sig_action, NULL);
-    sigaction (SIGQUIT, &sig_action, NULL);
-    sigaction (SIGSTOP, &sig_action, NULL);
-    sigaction (SIGTERM, &sig_action, NULL);
+    sigaction(SIGABRT, &sig_action, NULL);
+    sigaction(SIGINT,  &sig_action, NULL);
+    sigaction(SIGQUIT, &sig_action, NULL);
+    sigaction(SIGTERM, &sig_action, NULL);
 }
 
 static void connect_callback(struct udtcp_server_s* server, udtcp_infos* infos)
@@ -44,9 +43,6 @@ static void connect_callback(struct udtcp_server_s* server, udtcp_infos* infos)
         infos->tcp_port,
         infos->udp_server_port,
         infos->udp_client_port);
-
-    while (g_is_run)
-        udtcp_send_tcp(infos, "wooot", 6);
 }
 
 static void disconnect_callback(struct udtcp_server_s* server, udtcp_infos* infos)
@@ -100,29 +96,37 @@ static void log_callback(struct udtcp_server_s* server, enum udtcp_log_level_e l
 
 int main(void)
 {
+    udtcp_server* server;
+
     g_is_run = 1;
     ini_signal();
 
-    if (udtcp_create_server("0.0.0.0", 4242, 4243, 4244, &g_server) == -1)
+    if (udtcp_create_server("0.0.0.0", 4242, 4243, 4244, &server) == -1)
     {
         fprintf(stderr, "udtcp_create_server: %s\n", strerror(errno));
         return (1);
     }
 
-    g_server->connect_callback = &connect_callback;
-    g_server->disconnect_callback = &disconnect_callback;
-    g_server->receive_tcp_callback = &receive_tcp_callback;
-    g_server->receive_udp_callback = &receive_udp_callback;
-    g_server->log_callback = &log_callback;
+    /* set callback */
+    server->connect_callback = &connect_callback;
+    server->disconnect_callback = &disconnect_callback;
+    server->receive_tcp_callback = &receive_tcp_callback;
+    server->receive_udp_callback = &receive_udp_callback;
+    server->log_callback = &log_callback;
 
-    udtcp_start_server(g_server);
+    /* create new poll thread */
+    udtcp_start_server(server);
 
-    while (g_is_run)
+    /* wait */
+    while (g_is_run && server->is_started)
+    {
         sleep(1);
+    }
 
-    udtcp_stop_server(g_server);
+    /* kill and join poll thread */
+    udtcp_stop_server(server);
 
-    udtcp_delete_server(&g_server);
+    udtcp_delete_server(&server);
 
     return (0);
 }

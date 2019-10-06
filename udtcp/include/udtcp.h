@@ -39,37 +39,26 @@ extern "C" {
 enum udtcp_log_level_e
 {
     UDTCP_LOG_LEVEL_ERROR = 0,
-#define UDTCP_LOG_LEVEL_ERROR    UDTCP_LOG_LEVEL_ERROR
     UDTCP_LOG_LEVEL_INFO,
-#define UDTCP_LOG_LEVEL_INFO     UDTCP_LOG_LEVEL_INFO
     UDTCP_LOG_LEVEL_DEBUG
-#define UDTCP_LOG_LEVEL_DEBUG    UDTCP_LOG_LEVEL_DEBUG
 };
 
 /* enum of connect return */
 enum udtcp_connect_e
 {
     UDTCP_CONNECT_SUCCESS = 0,
-#define UDTCP_CONNECT_SUCCESS   UDTCP_CONNECT_SUCCESS
     UDTCP_CONNECT_ERROR,
-#define UDTCP_CONNECT_ERROR     UDTCP_CONNECT_ERROR
     UDTCP_CONNECT_TIMEOUT,
-#define UDTCP_CONNECT_TIMEOUT   UDTCP_CONNECT_TIMEOUT
     UDTCP_CONNECT_TOO_MANY
-#define UDTCP_CONNECT_TOO_MANY  UDTCP_CONNECT_TOO_MANY
 };
 
 /* enum of poll return */
 enum udtcp_poll_e
 {
     UDTCP_POLL_SUCCESS = 0,
-#define UDTCP_POLL_SUCCESS      UDTCP_POLL_SUCCESS
     UDTCP_POLL_ERROR,
-#define UDTCP_POLL_ERROR        UDTCP_POLL_ERROR
     UDTCP_POLL_TIMEOUT,
-#define UDTCP_POLL_TIMEOUT      UDTCP_POLL_TIMEOUT
     UDTCP_POLL_SIGNAL
-#define UDTCP_POLL_SIGNAL       UDTCP_POLL_SIGNAL
 };
 
 /* define options */
@@ -185,6 +174,7 @@ struct udtcp_server_s
 
     pthread_t               poll_thread;
     int                     poll_loop;
+    volatile int            is_started;
 
     uint8_t*                buffer_data;
     size_t                  buffer_size;
@@ -217,6 +207,7 @@ struct udtcp_client_s
 
     pthread_t               poll_thread;
     int                     poll_loop;
+    volatile int            is_started;
 
     uint8_t*                buffer_data;
     size_t                  buffer_size;
@@ -230,12 +221,35 @@ typedef struct udtcp_client_s   udtcp_client;
 /*
 SOCKET
 */
+
+/**
+ * @brief add a option in socket file descriptor
+ *
+ * @param socket            file descriptor of socket
+ * @param option            option to add
+ * @return int              zero if success or -1 for error
+ */
 int udtcp_socket_add_option(int socket, int option);
+
+/**
+ * @brief sub a option in socket file descriptor
+ *
+ * @param socket            file descriptor of socket
+ * @param option            option to sub
+ * @return int              zero if success or -1 for error
+ */
 int udtcp_socket_sub_option(int socket, int option);
 
 /*
 UTILS
 */
+
+/**
+ * @brief transform informations of addr to string in infos
+ *
+ * @param infos
+ * @param addr
+ */
 void udtcp_set_string_infos(udtcp_infos* infos, struct sockaddr_in* addr);
 
 /*
@@ -296,16 +310,7 @@ int udtcp_create_client(const char* hostname,
 void udtcp_delete_client(udtcp_client** addr_client);
 
 /**
- * @brief
- * @param client            client pointer
- * @param server_hostname   hostname of server
- * @param server_tcp_port   tcp port of server
- * @param timeout           in milisseconds
- * @return int
- */
-
-/**
- * @brief connect client to server by transmitting udp information
+ * @brief connect client to server and transmitting udp information
  *
  * @param client            client pointer
  * @param server_hostname   hostname of server
@@ -325,7 +330,19 @@ enum udtcp_connect_e udtcp_connect_client(udtcp_client* client,
  */
 enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout);
 
+/**
+ * @brief start thread poll
+ *
+ * @param client            client pointer
+ * @return int              zero if success or -1 for error
+ */
 int udtcp_start_client(udtcp_client* client);
+
+/**
+ * @brief stop poll thread
+ *
+ * @param client            client pointer
+ */
 void udtcp_stop_client(udtcp_client* client);
 
 /*
@@ -366,7 +383,19 @@ void udtcp_delete_server(udtcp_server** addr_server);
  */
 enum udtcp_poll_e udtcp_server_poll(udtcp_server* server, long timeout);
 
+/**
+ * @brief start poll thread
+ *
+ * @param server            server pointer
+ * @return int              zero if success or -1 for error
+ */
 int udtcp_start_server(udtcp_server* server);
+
+/**
+ * @brief stop poll thread
+ *
+ * @param server            server pointer
+ */
 void udtcp_stop_server(udtcp_server* server);
 
 #ifdef __cplusplus

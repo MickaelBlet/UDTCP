@@ -47,7 +47,14 @@ static int initialize_connection(udtcp_server* server,
     /* receive to client udp port */
     ret_recv = recv(client_infos->tcp_socket,
         client_infos,
-        sizeof(*client_infos), 0);
+        sizeof(*client_infos) + 1, 0);
+    /* socket is close */
+    if (ret_recv == 0)
+    {
+        UDTCP_LOG_ERROR(server, "recv: close");
+        return (-1);
+    }
+    /* bad size of return */
     if (ret_recv != sizeof(*client_infos))
     {
         UDTCP_LOG_ERROR(server, "recv: failed");
@@ -121,6 +128,7 @@ static int accept_all(udtcp_server* server)
     if (initialize_connection(server, new_client_infos) == -1)
     {
         close(new_client_infos->tcp_socket);
+        UDTCP_LOG_ERROR(server, "accept: refused");
         return (-1);
     }
 

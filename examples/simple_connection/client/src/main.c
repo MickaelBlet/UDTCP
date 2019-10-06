@@ -1,7 +1,7 @@
 #include <errno.h>
-#include <unistd.h>
 #include <signal.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "udtcp.h"
 
@@ -21,15 +21,14 @@ static void ini_signal(void)
     struct sigaction sig_action;
 
     sig_action.sa_handler = &signalStop;
-    sigemptyset (&sig_action.sa_mask);
+    sigemptyset(&sig_action.sa_mask);
     sig_action.sa_flags = 0;
 
     /* catch signal term actions */
-    sigaction (SIGABRT, &sig_action, NULL);
-    sigaction (SIGINT,  &sig_action, NULL);
-    sigaction (SIGQUIT, &sig_action, NULL);
-    sigaction (SIGSTOP, &sig_action, NULL);
-    sigaction (SIGTERM, &sig_action, NULL);
+    sigaction(SIGABRT, &sig_action, NULL);
+    sigaction(SIGINT,  &sig_action, NULL);
+    sigaction(SIGQUIT, &sig_action, NULL);
+    sigaction(SIGTERM, &sig_action, NULL);
 }
 
 static void connect_callback(udtcp_client* client, udtcp_infos *infos)
@@ -49,9 +48,7 @@ static void connect_callback(udtcp_client* client, udtcp_infos *infos)
 
 static void disconnect_callback(udtcp_client* client, udtcp_infos *infos)
 {
-    int* is_connect = client->user_data;
-
-    *is_connect = UDTCP_CONNECT_ERROR;
+    (void)client;
     fprintf(stdout,
         "DISCONNECT CALLBACK "
         "ip: %s, "
@@ -67,14 +64,14 @@ static void disconnect_callback(udtcp_client* client, udtcp_infos *infos)
 static void receive_tcp_callback(udtcp_client* client, udtcp_infos* infos, void* data, size_t data_size)
 {
     (void)client;
-    // fprintf(stdout,
-    //     "RECEIVE TCP CALLBACK "
-    //     "ip: %s, "
-    //     "tcp port: %hu > \"%.*s\"\n",
-    //     infos->ip,
-    //     infos->tcp_port,
-    //     (int)data_size,
-    //     (const char *)data);
+    fprintf(stdout,
+        "RECEIVE TCP CALLBACK "
+        "ip: %s, "
+        "tcp port: %hu > \"%.*s\"\n",
+        infos->ip,
+        infos->tcp_port,
+        (int)data_size,
+        (const char *)data);
 }
 
 static void receive_udp_callback(udtcp_client* client, udtcp_infos* infos, void* data, size_t data_size)
@@ -100,7 +97,6 @@ static void log_callback(udtcp_client* client, enum udtcp_log_level_e level, con
 
 int main(void)
 {
-    enum udtcp_poll_e   ret_poll;
     udtcp_client*       client;
     int                 is_connect = UDTCP_CONNECT_ERROR;
 
@@ -113,15 +109,12 @@ int main(void)
         return (1);
     }
 
-    /* set callback addr */
+    /* set callback */
     client->connect_callback = &connect_callback;
     client->disconnect_callback = &disconnect_callback;
     client->receive_tcp_callback = &receive_tcp_callback;
     client->receive_udp_callback = &receive_udp_callback;
     client->log_callback = &log_callback;
-
-    /* set user_data */
-    client->user_data = &is_connect;
 
     while (g_is_run)
     {
@@ -137,10 +130,12 @@ int main(void)
         udtcp_start_client(client);
 
         /* wait */
-        while (g_is_run && is_connect == UDTCP_CONNECT_SUCCESS)
+        while (g_is_run && client->is_started)
         {
             sleep(1);
         }
+
+        is_connect = UDTCP_CONNECT_ERROR;
 
         /* kill and join poll thread */
         udtcp_stop_client(client);
