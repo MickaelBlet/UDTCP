@@ -51,7 +51,7 @@ void udtcp_stop_client(udtcp_client* client)
 {
     if (client->poll_loop == 0)
     {
-        UDTCP_LOG_ERROR(client, "Client is already stoped");
+        UDTCP_LOG_ERROR(client, "Client is already stopped");
         return;
     }
     client->poll_loop = 0;
