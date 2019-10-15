@@ -77,23 +77,30 @@ enum udtcp_poll_e
 #define UDTCP_LOG_DEBUG 1
 #define UDTCP_LOG_INFO  1
 #define UDTCP_LOG_ERROR 1
-#else
-#define UDTCP_SOURCE_LOG /* nothing */
-#endif
-
-#define UDTCP_LOG(udtcp, level, format, ...)                                \
+#define UDTCP_LOG(udtcp, level, ...)                                        \
     if (udtcp->log_callback != NULL)                                        \
     {                                                                       \
         char out_log[1024];                                                 \
-        snprintf(out_log, 1024, UDTCP_SOURCE_LOG format, ##__VA_ARGS__);    \
+        int prefix_size = snprintf(out_log, 1024, UDTCP_SOURCE_LOG);        \
+        snprintf(out_log + prefix_size, 1024 - prefix_size, ##__VA_ARGS__); \
         udtcp->log_callback(udtcp, level, out_log);                         \
     }
+#else
+#define UDTCP_LOG(udtcp, level, ...)                                        \
+    if (udtcp->log_callback != NULL)                                        \
+    {                                                                       \
+        char out_log[1024];                                                 \
+        snprintf(out_log, 1024, ##__VA_ARGS__);                             \
+        udtcp->log_callback(udtcp, level, out_log);                         \
+    }
+#endif
+
 
 /* if log define replace by macro */
 #ifdef UDTCP_LOG_DEBUG
 #undef UDTCP_LOG_DEBUG
-#define UDTCP_LOG_DEBUG(udtcp, format, ...)                                 \
-    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
+#define UDTCP_LOG_DEBUG(udtcp, ...)                                        \
+    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_DEBUG, ##__VA_ARGS__)
 #ifndef UDTCP_LOG_INFO
 #define UDTCP_LOG_INFO 1
 #endif
@@ -102,8 +109,8 @@ enum udtcp_poll_e
 #endif
 #ifdef UDTCP_LOG_INFO
 #undef UDTCP_LOG_INFO
-#define UDTCP_LOG_INFO(udtcp, format, ...)                                  \
-    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_INFO, format, ##__VA_ARGS__)
+#define UDTCP_LOG_INFO(udtcp, ...)                                         \
+    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_INFO, ##__VA_ARGS__)
 #ifndef UDTCP_LOG_ERROR
 #define UDTCP_LOG_ERROR 1
 #endif
@@ -112,8 +119,8 @@ enum udtcp_poll_e
 #endif
 #ifdef UDTCP_LOG_ERROR
 #undef UDTCP_LOG_ERROR
-#define UDTCP_LOG_ERROR(udtcp, format, ...)                                 \
-    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
+#define UDTCP_LOG_ERROR(udtcp, ...)                                        \
+    UDTCP_LOG(udtcp, UDTCP_LOG_LEVEL_ERROR, ##__VA_ARGS__)
 #else
 #define UDTCP_LOG_ERROR(...) /* nothing */
 #endif
@@ -290,10 +297,11 @@ CLIENT
  * @brief create client with tcp and udp server socket and udp client socket
  *
  * @param hostname          define hostname of bind socket
- * @param tcp_port          define tcp port
- * @param udp_server_port   define udp server port, set zero to get
+ * @param tcp_port          define tcp port, set zero to get
  *                          an ephemeral port
- * @param udp_client_port   define udp client port, set zero to get
+ * @param udp_server_port   define udp receiver port, set zero to get
+ *                          an ephemeral port
+ * @param udp_client_port   define udp sender port, set zero to get
  *                          an ephemeral port
  * @param out_server        new udtcp_server_t structure
  * @return int              zero if success or -1 for error
@@ -355,10 +363,11 @@ SERVER
  * @brief create server with tcp and udp server socket and client udp socket
  *
  * @param hostname          define hostname of bind socket
- * @param tcp_port          define tcp port
- * @param udp_server_port   define udp server port, set zero to get
+ * @param tcp_port          define tcp port, set zero to get
  *                          an ephemeral port
- * @param udp_client_port   define udp client port, set zero to get
+ * @param udp_server_port   define udp receiver port, set zero to get
+ *                          an ephemeral port
+ * @param udp_client_port   define udp sender port, set zero to get
  *                          an ephemeral port
  * @param out_server        new udtcp_server_t structure
  * @return int              zero if success or -1 for errors

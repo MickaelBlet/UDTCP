@@ -16,7 +16,7 @@ static int buffer_copy(udtcp_infos* infos, const void *data, uint32_t data_size)
         if (new_buffer == NULL)
             return (-1);
         /* delete last buffer */
-        if (infos->send->buffer != NULL)
+        if (infos->send->buffer_size > 0)
             free(infos->send->buffer);
         /* set new buffer */
         infos->send->buffer = new_buffer;

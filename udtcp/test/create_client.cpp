@@ -20,7 +20,7 @@ MOCK_WEAK_DECLTYPE_METHOD3(getsockname);
 GTEST_TEST(create_client, success)
 {
     struct hostent instanceHostent;
-    char * h_addr_list[1] = {(char *)"\1\0\0\127"};
+    char* h_addr_list[1] = {(char *)"\1\0\0\127"};
     instanceHostent.h_addr_list = h_addr_list;
     udtcp_client *out_client;
 

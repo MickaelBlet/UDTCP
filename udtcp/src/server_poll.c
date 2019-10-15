@@ -237,15 +237,16 @@ static int receive_tcp(udtcp_server *server, udtcp_infos *client_infos)
             ret_poll = poll(&poll_fd, 1, -1);
             if (ret_poll < 0)
             {
-                UDTCP_LOG(server, 2, "poll: failed");
+                UDTCP_LOG_ERROR(server, "poll: failed");
                 return (-1);
             }
             else if (ret_poll == 0)
             {
-                UDTCP_LOG(server, 2, "poll: timeout");
+                UDTCP_LOG_ERROR(server, "poll: timeout");
                 return (-1);
             }
-            ret_recv = recv(client_infos->tcp_socket, server->buffer_data + buffer_size, data_size - buffer_size, 0);
+            ret_recv = recv(client_infos->tcp_socket,
+                server->buffer_data + buffer_size, data_size - buffer_size, 0);
             if (ret_recv < 0)
             {
                 UDTCP_LOG_ERROR(server, "[%lu]%s:%hu TCP recv: bad size",
@@ -262,12 +263,16 @@ static int receive_tcp(udtcp_server *server, udtcp_infos *client_infos)
 
     /* use callback if defined */
     if (server->receive_tcp_callback != NULL)
-        server->receive_tcp_callback(server, client_infos, server->buffer_data, data_size);
+    {
+        server->receive_tcp_callback(server,
+            client_infos, server->buffer_data, data_size);
+    }
 
     return (data_size);
 }
 
-static int udtcp_get_infos(udtcp_server *server, struct sockaddr_in* in_addr, udtcp_infos** out_infos)
+static int udtcp_get_infos(udtcp_server *server,
+    struct sockaddr_in* in_addr, udtcp_infos** out_infos)
 {
     size_t i;
 

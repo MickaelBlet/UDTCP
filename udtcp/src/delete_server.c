@@ -9,27 +9,49 @@ void udtcp_delete_server(udtcp_server** addr_server)
 
     if ((*addr_server)->server_infos->tcp_socket != -1
         && close((*addr_server)->server_infos->tcp_socket) == -1)
+    {
         UDTCP_LOG_ERROR((*addr_server), "close: fail");
+    }
     if ((*addr_server)->server_infos->udp_server_socket != -1
         && close((*addr_server)->server_infos->udp_server_socket) == -1)
+    {
         UDTCP_LOG_ERROR((*addr_server), "close: fail");
+    }
     if ((*addr_server)->server_infos->udp_client_socket != -1
         && close((*addr_server)->server_infos->udp_client_socket) == -1)
+    {
         UDTCP_LOG_ERROR((*addr_server), "close: fail");
+    }
     for (i = 2; i < UDTCP_POLL_TABLE_SIZE; ++i)
+    {
+        if ((*addr_server)->sends[i].buffer_size > 0)
+        {
+            free((*addr_server)->sends[i].buffer);
+        }
         pthread_mutex_destroy(&((*addr_server)->sends[i].mutex));
+    }
     for (i = 2; i < (*addr_server)->poll_nfds; ++i)
     {
         if ((*addr_server)->poll_fds[i].fd != -1
             && shutdown((*addr_server)->poll_fds[i].fd, SHUT_RDWR) == -1)
+        {
             UDTCP_LOG_ERROR((*addr_server), "close: fail");
+        }
         if ((*addr_server)->poll_fds[i].fd != -1
             && close((*addr_server)->poll_fds[i].fd) == -1)
+        {
             UDTCP_LOG_ERROR((*addr_server), "close: fail");
+        }
         if ((*addr_server)->poll_fds[i].fd != -1
             && (*addr_server)->disconnect_callback != NULL)
+        {
             (*addr_server)->disconnect_callback((*addr_server),
                 &((*addr_server)->infos[i]));
+        }
+    }
+    if ((*addr_server)->buffer_size > 0)
+    {
+        free((*addr_server)->buffer_data);
     }
     free(*addr_server);
     *addr_server = NULL;

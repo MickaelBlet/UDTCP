@@ -75,8 +75,8 @@ DEBUG_COMPILER			=	$(CC)
 RELEASE_COMPILER		=	$(CC)
 TEST_COMPILER			=	$(CXX)
 
-DEBUG_FLAGS				=	-std=c99 -Wall -Wextra -ggdb3
-RELEASE_FLAGS			=	-O2 -Wall -Wextra -Werror
+DEBUG_FLAGS				=	-Wall -Wextra -Wpedantic -ggdb3
+RELEASE_FLAGS			=	-O2 -Wall -Wextra -Werror -Wpedantic
 TEST_FLAGS				=	-std=c++11 -Wall -Wextra -ggdb3
 
 DEBUG_OPTIONS			=	-DVERSION=\"$(VERSION)\" -DDEBUG \
@@ -98,5 +98,9 @@ include ../module.mk
 exe_test:	test
 	@$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n";\
 	$(bin) || exit;)
+
+valgrind_exe_test:	test
+	@$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n";\
+	valgrind --leak-check=yes $(bin) || exit;)
 
 PHONY:

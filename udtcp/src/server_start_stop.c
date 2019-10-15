@@ -1,5 +1,9 @@
 #include <pthread.h>
 #include <signal.h>
+#include <errno.h>
+#include <signal.h>
+#include <string.h>
+#include <unistd.h>
 #include <bits/sigthread.h>
 
 #include "udtcp.h"

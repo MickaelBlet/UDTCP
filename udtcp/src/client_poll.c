@@ -221,10 +221,14 @@ static void disconnect(udtcp_client* client, udtcp_infos* server_infos)
 {
     /* send '\0' to the server */
     if (shutdown(client->client_infos->tcp_socket, SHUT_RDWR) == -1)
+    {
         UDTCP_LOG_ERROR(client, "shutdown: fail");
+    }
     /* close tcp socket */
     if (close(client->client_infos->tcp_socket) == -1)
+    {
         UDTCP_LOG_ERROR(client, "close: fail");
+    }
     client->client_infos->tcp_socket = -1;
     UDTCP_LOG_INFO(client,
         "Disconnect ip: %s, "

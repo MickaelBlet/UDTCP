@@ -10,7 +10,7 @@
 
 static int g_is_run = 0;
 
-static void signalStop(int sig_number)
+static void signal_stop(int sig_number)
 {
     (void)sig_number;
     g_is_run = 0;
@@ -20,7 +20,7 @@ static void ini_signal(void)
 {
     struct sigaction sig_action;
 
-    sig_action.sa_handler = &signalStop;
+    sig_action.sa_handler = &signal_stop;
     sigemptyset(&sig_action.sa_mask);
     sig_action.sa_flags = 0;
 
@@ -126,19 +126,30 @@ int main(void)
                 sleep(CLIENT_WAIT_BETWEEN_TRY_CONNECTION);
         }
 
+        if (!g_is_run)
+            break;
+
         /* create new poll thread */
         udtcp_start_client(client);
 
-        /* wait */
-        while (g_is_run && client->is_started)
-        {
-            sleep(1);
+        udtcp_send_tcp(client->server_infos, "test tcp", 9);
+        for (int i = 0; g_is_run && i < 100000; ++i) {
+            udtcp_send_udp(client->server_infos, "test udp", 9);
+            usleep(0);
         }
+
+        /* wait */
+        // while (g_is_run && client->is_started)
+        // {
+        //     sleep(1);
+        // }
 
         is_connect = UDTCP_CONNECT_ERROR;
 
         /* kill and join poll thread */
         udtcp_stop_client(client);
+
+        break;
     }
 
     udtcp_delete_client(&client);

@@ -1,7 +1,8 @@
 #include <pthread.h>
-#include <signal.h>
-#include <bits/sigthread.h>
-
+#include <unistd.h>
+#include <signal.h>         /* SIGTERM */
+#include <errno.h>
+#include <string.h>
 #include "udtcp.h"
 
 static void* thread_client_poll(void* arg)

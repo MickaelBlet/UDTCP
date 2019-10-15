@@ -8,8 +8,9 @@
 #define SERVER_POLL_TIMEOUT (3 * 60 * 1000) /* 3 minutes */
 
 static int g_is_run = 0;
+static unsigned int g_count_packet = 0;
 
-static void signalStop(int sig_number)
+static void signal_stop(int sig_number)
 {
     (void)sig_number;
     g_is_run = 0;
@@ -19,7 +20,7 @@ static void ini_signal(void)
 {
     struct sigaction sig_action;
 
-    sig_action.sa_handler = &signalStop;
+    sig_action.sa_handler = &signal_stop;
     sigemptyset(&sig_action.sa_mask);
     sig_action.sa_flags = 0;
 
@@ -58,6 +59,7 @@ static void disconnect_callback(struct udtcp_server_s* server, udtcp_infos* info
         infos->tcp_port,
         infos->udp_server_port,
         infos->udp_client_port);
+    fprintf(stdout, "number udp packet %u.\n", g_count_packet);
 }
 
 static void receive_tcp_callback(struct udtcp_server_s* server, udtcp_infos* infos, void* data, size_t data_size)
@@ -66,9 +68,10 @@ static void receive_tcp_callback(struct udtcp_server_s* server, udtcp_infos* inf
     fprintf(stdout,
         "RECEIVE TCP CALLBACK "
         "ip: %s, "
-        "tcp port: %hu > \"%.*s\"\n",
+        "tcp port: %hu > [%i] \"%.*s\"\n",
         infos->ip,
         infos->tcp_port,
+        (int)infos->id,
         (int)data_size,
         (const char *)data);
 }
@@ -76,15 +79,19 @@ static void receive_tcp_callback(struct udtcp_server_s* server, udtcp_infos* inf
 static void receive_udp_callback(struct udtcp_server_s* server, udtcp_infos* infos, void* data, size_t data_size)
 {
     (void)server;
-    fprintf(stdout,
-        "RECEIVE UDP CALLBACK "
-        "ip: %s, "
-        "udp port: %hu > [%i] \"%.*s\"\n",
-        infos->ip,
-        infos->udp_client_port,
-        (int)infos->id,
-        (int)data_size,
-        (const char *)data);
+    (void)infos;
+    (void)data;
+    (void)data_size;
+    ++g_count_packet;
+    // fprintf(stdout,
+    //     "RECEIVE UDP CALLBACK "
+    //     "ip: %s, "
+    //     "udp port: %hu > [%i] \"%.*s\"\n",
+    //     infos->ip,
+    //     infos->udp_client_port,
+    //     (int)infos->id,
+    //     (int)data_size,
+    //     (const char *)data);
 }
 
 static void log_callback(struct udtcp_server_s* server, enum udtcp_log_level_e level, const char* str)
@@ -101,7 +108,7 @@ int main(void)
     g_is_run = 1;
     ini_signal();
 
-    if (udtcp_create_server("0.0.0.0", 4242, 4243, 4244, &server) == -1)
+    if (udtcp_create_server("0.0.0.0", 4242, 4242, 4243, &server) == -1)
     {
         fprintf(stderr, "udtcp_create_server: %s\n", strerror(errno));
         return (1);
