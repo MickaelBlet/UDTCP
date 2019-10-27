@@ -124,7 +124,7 @@ static int accept_all(udtcp_server* server)
         return (-1);
     }
 
-    /* try to dialog in udp */
+    /* exchange informations */
     if (initialize_connection(server, new_client_infos) == -1)
     {
         close(new_client_infos->tcp_socket);
@@ -292,23 +292,27 @@ static int udtcp_get_infos(udtcp_server *server,
 
 static int receive_udp(udtcp_server *server, udtcp_infos *server_infos)
 {
-    socklen_t           len_addr = 0;
+    socklen_t           len_addr = sizeof(struct sockaddr_in);
     udtcp_infos*        client_infos;
     uint8_t*            new_buffer_data;
     uint32_t            data_size;
     int                 ret_recv;
     struct sockaddr_in  addr;
 
+    /* receive data size */
     ret_recv = recvfrom(server_infos->udp_server_socket,
         &data_size, sizeof(uint32_t),
         MSG_PEEK,
         (struct sockaddr*)&addr,
         &len_addr);
+    /* recv error */
     if (ret_recv < 0)
         return (-1);
+    /* recv close */
     if (ret_recv == 0)
         return (0);
 
+    /* not a size of data */
     if (ret_recv != sizeof(uint32_t))
     {
         UDTCP_LOG_ERROR(server, "[%lu]%s:%hu UDP recv: bad size (%d)",
@@ -318,9 +322,11 @@ static int receive_udp(udtcp_server *server, udtcp_infos *server_infos)
         return (-1);
     }
 
+    /* need reallocate buffer */
     if (data_size + sizeof(uint32_t) > server->buffer_size)
     {
         new_buffer_data = (uint8_t*)malloc(data_size + sizeof(uint32_t));
+        /* malloc error */
         if (new_buffer_data == NULL)
         {
             UDTCP_LOG_ERROR(server, "[%lu]%s:%hu TCP recv: size too big (%u)",
@@ -329,13 +335,17 @@ static int receive_udp(udtcp_server *server, udtcp_infos *server_infos)
                 server_infos->udp_server_port, data_size);
             return (-1);
         }
+        /* delete last buffer */
         if (server->buffer_data != NULL)
             free(server->buffer_data);
+        /* set new buffer */
         server->buffer_data = new_buffer_data;
         server->buffer_size = data_size + sizeof(uint32_t);
     }
 
-    ret_recv = recvfrom(server_infos->udp_server_socket, server->buffer_data, sizeof(uint32_t) + data_size, 0,
+    len_addr = sizeof(struct sockaddr_in);
+    ret_recv = recvfrom(server_infos->udp_server_socket,
+        server->buffer_data, sizeof(uint32_t) + data_size, 0,
         (struct sockaddr*)&addr,
         &len_addr);
     if (ret_recv < 0)
@@ -366,6 +376,7 @@ static int receive_udp(udtcp_server *server, udtcp_infos *server_infos)
         return (-1);
     }
 
+    /* use callback if defined */
     if (server->receive_udp_callback != NULL)
         server->receive_udp_callback(server, client_infos, server->buffer_data + sizeof(uint32_t), data_size);
 
@@ -374,14 +385,28 @@ static int receive_udp(udtcp_server *server, udtcp_infos *server_infos)
 
 static void disconnect(udtcp_server *server, udtcp_infos *client_infos)
 {
-    UDTCP_LOG_INFO(server, "Disconnect ip: %s, tcp port: %u, udp server port: %u, udp client port: %u",
-            client_infos->ip,
-            (int)client_infos->tcp_port,
-            (int)client_infos->udp_server_port,
-            (int)client_infos->udp_client_port);
+    /* send '\0' to the client */
+    if (shutdown(client_infos->tcp_socket, SHUT_RDWR) == -1)
+    {
+        UDTCP_LOG_ERROR(server, "shutdown: fail");
+    }
+    /* close tcp socket */
+    if (close(client_infos->tcp_socket) == -1)
+    {
+        UDTCP_LOG_ERROR(server, "close: fail");
+    }
+    UDTCP_LOG_INFO(server,
+        "Disconnect ip: %s, "
+        "tcp port: %u, "
+        "udp server port: %u, "
+        "udp client port: %u",
+        client_infos->ip,
+        (unsigned int)client_infos->tcp_port,
+        (unsigned int)client_infos->udp_server_port,
+        (unsigned int)client_infos->udp_client_port);
+    /* use callback if defined */
     if (server->disconnect_callback != NULL)
         server->disconnect_callback(server, client_infos);
-    close(client_infos->tcp_socket);
 }
 
 enum udtcp_poll_e udtcp_server_poll(udtcp_server *server, long timeout)
@@ -391,7 +416,9 @@ enum udtcp_poll_e udtcp_server_poll(udtcp_server *server, long timeout)
     int ret_receive;
     int organise_array = 0;
 
+    /* wait action from sockets */
     ret_poll = poll(server->poll_fds, server->poll_nfds, timeout);
+    /* error or receive signal */
     if (ret_poll < 0)
     {
         if (errno == EINTR)
@@ -399,12 +426,14 @@ enum udtcp_poll_e udtcp_server_poll(udtcp_server *server, long timeout)
         UDTCP_LOG_ERROR(server, "poll: fail \"%s\"", strerror(errno));
         return (UDTCP_POLL_ERROR);
     }
+    /* timeout */
     if (ret_poll == 0)
     {
         UDTCP_LOG_INFO(server, "poll: timeout");
         return (UDTCP_POLL_TIMEOUT);
     }
 
+    /* foreach socket */
     for (i = 0; server->poll_loop && i < server->poll_nfds; ++i)
     {
         /* not active fd */
@@ -432,10 +461,13 @@ enum udtcp_poll_e udtcp_server_poll(udtcp_server *server, long timeout)
         /* is client */
         else
         {
-            while (server->poll_loop
-                    && (ret_receive = receive_tcp(server, &(server->infos[i]))) > 0);
+            ret_receive = receive_tcp(server, &(server->infos[i]));
+            while (server->poll_loop && ret_receive > 0)
+                ret_receive = receive_tcp(server, &(server->infos[i]));
+            /* error socket */
             if (ret_receive < 0)
             {
+                /* not nonblock errno */
                 if (errno != EWOULDBLOCK)
                 {
                     disconnect(server, &(server->infos[i]));
@@ -443,6 +475,7 @@ enum udtcp_poll_e udtcp_server_poll(udtcp_server *server, long timeout)
                     organise_array = 1;
                 }
             }
+            /* close socket */
             else if (ret_receive == 0)
             {
                 disconnect(server, &(server->infos[i]));

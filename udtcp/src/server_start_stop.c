@@ -17,16 +17,8 @@ static void* thread_server_poll(void* arg)
     while (server->poll_loop)
     {
         ret_poll = udtcp_server_poll(server, UDTCP_POLL_LOOP_TIMEOUT);
-        if (ret_poll == UDTCP_POLL_ERROR)
-        {
-            UDTCP_LOG_DEBUG(server, "poll: error");
+        if (ret_poll == UDTCP_POLL_ERROR || ret_poll == UDTCP_POLL_SIGNAL)
             break;
-        }
-        if (ret_poll == UDTCP_POLL_SIGNAL)
-        {
-            UDTCP_LOG_DEBUG(server, "poll: signal");
-            break;
-        }
     }
     server->is_started = 0;
     UDTCP_LOG_INFO(server, "Poll loop end");

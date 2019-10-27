@@ -268,7 +268,7 @@ enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout)
     }
 
     /* foreach socket */
-    for (i = 0; i < client->poll_nfds; ++i)
+    for (i = 0; client->poll_loop && i < client->poll_nfds; ++i)
     {
         /* not active fd */
         if (!client->poll_fds[i].revents)
@@ -285,10 +285,10 @@ enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout)
         if (client->poll_fds[i].fd == client->client_infos->tcp_socket)
         {
             ret_receive = receive_tcp(client, client->server_infos);
-            while (ret_receive > 0)
+            while (client->poll_loop && ret_receive > 0)
                 ret_receive = receive_tcp(client, client->server_infos);
             /* error socket */
-            if (ret_receive == -1)
+            if (ret_receive < 0)
             {
                 /* not nonblock errno */
                 if (errno != EWOULDBLOCK)
@@ -307,7 +307,8 @@ enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout)
         /* is udp socket */
         else if (client->poll_fds[i].fd == client->client_infos->udp_server_socket)
         {
-            while (receive_udp(client, client->server_infos) > 0);
+            while (client->poll_loop
+                    && receive_udp(client, client->server_infos) > 0);
         }
     }
     return (UDTCP_POLL_SUCCESS);

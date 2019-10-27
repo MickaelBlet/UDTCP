@@ -14,16 +14,8 @@ static void* thread_client_poll(void* arg)
     while (client->poll_loop)
     {
         ret_poll = udtcp_client_poll(client, UDTCP_POLL_LOOP_TIMEOUT);
-        if (ret_poll == UDTCP_POLL_ERROR)
-        {
-            UDTCP_LOG_DEBUG(client, "poll: error");
+        if (ret_poll == UDTCP_POLL_ERROR || ret_poll == UDTCP_POLL_SIGNAL)
             break;
-        }
-        if (ret_poll == UDTCP_POLL_SIGNAL)
-        {
-            UDTCP_LOG_DEBUG(client, "poll: signal");
-            break;
-        }
     }
     client->is_started = 0;
     UDTCP_LOG_INFO(client, "Poll loop end");
@@ -38,13 +30,14 @@ int udtcp_start_client(udtcp_client* client)
         return (-1);
     }
     client->poll_loop = 1;
+    client->is_started = 1;
     if (pthread_create(&(client->poll_thread),
         NULL, &thread_client_poll, client) != 0)
     {
         client->poll_loop = 0;
+        client->is_started = 0;
         return (-1);
     }
-    client->is_started = 1;
     return (0);
 }
 
