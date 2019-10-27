@@ -17,11 +17,14 @@ MOCK_WEAK_DECLTYPE_METHOD5(setsockopt);
 MOCK_WEAK_DECLTYPE_METHOD3(bind);
 MOCK_WEAK_DECLTYPE_METHOD3(getsockname);
 
-GTEST_TEST(create_client, success)
+GTEST_TEST(udtcp_create_client, success)
 {
     struct hostent instanceHostent;
+    memset(&instanceHostent, 0, sizeof(struct hostent));
     char* h_addr_list[1] = {(char *)"\1\0\0\127"};
     instanceHostent.h_addr_list = h_addr_list;
+    char host_name[] = "127.0.0.1";
+    instanceHostent.h_name = host_name;
     udtcp_client *out_client;
 
     MOCK_WEAK_EXPECT_CALL(gethostbyname, ("127.0.0.42"))
@@ -39,4 +42,5 @@ GTEST_TEST(create_client, success)
     .WillRepeatedly(Return(0));
 
     EXPECT_EQ(0, udtcp_create_client("127.0.0.42", 4242, 4243, 4444, &out_client));
+    udtcp_delete_client(&out_client);
 }

@@ -14,7 +14,7 @@ using ::testing::Return;
 
 MOCK_WEAK_DECLTYPE_METHOD4(pthread_create);
 
-GTEST_TEST(udtcp, start_client_success)
+GTEST_TEST(udtcp_start_client, success)
 {
     udtcp_client client;
     client.poll_loop = 0;
@@ -27,7 +27,7 @@ GTEST_TEST(udtcp, start_client_success)
 }
 
 // already started
-GTEST_TEST(udtcp, start_client_fail1)
+GTEST_TEST(udtcp_start_client, fail1)
 {
     udtcp_client client;
     client.poll_loop = 1;
@@ -38,7 +38,7 @@ GTEST_TEST(udtcp, start_client_fail1)
 }
 
 // pthread error
-GTEST_TEST(udtcp, start_client_fail2)
+GTEST_TEST(udtcp_start_client, fail2)
 {
     udtcp_client client;
     client.poll_loop = 0;
@@ -57,7 +57,7 @@ GTEST_TEST(udtcp, start_client_fail2)
 MOCK_WEAK_DECLTYPE_METHOD2(pthread_kill);
 MOCK_WEAK_DECLTYPE_METHOD2(pthread_join);
 
-GTEST_TEST(udtcp, stop_client_success)
+GTEST_TEST(udtcp_stop_client, success)
 {
     udtcp_client client;
     client.poll_loop = 1;
@@ -73,7 +73,7 @@ GTEST_TEST(udtcp, stop_client_success)
 }
 
 // already stopped
-GTEST_TEST(udtcp, stop_client_fail1)
+GTEST_TEST(udtcp_stop_client, fail1)
 {
     udtcp_client client;
     client.poll_loop = 0;
@@ -88,66 +88,64 @@ GTEST_TEST(udtcp, stop_client_fail1)
 
 MOCK_WEAK_DECLTYPE_METHOD2(udtcp_client_poll);
 
-static void signalStop(int sig_number)
-{
-    (void)sig_number;
-}
-
-static void ini_signal(void)
-{
-    struct sigaction sig_action;
-
-    sig_action.sa_handler = &signalStop;
-    sigemptyset(&sig_action.sa_mask);
-    sig_action.sa_flags = 0;
-
-    /* catch signal term actions */
-    sigaction(SIGABRT, &sig_action, NULL);
-    sigaction(SIGINT,  &sig_action, NULL);
-    sigaction(SIGQUIT, &sig_action, NULL);
-    sigaction(SIGTERM, &sig_action, NULL);
-}
-
-GTEST_TEST(udtcp, start_stop_client_end_by_error)
+GTEST_TEST(udtcp_start_client__udtcp_stop_client, end_by_error)
 {
     udtcp_client client;
     client.poll_loop = 0;
     client.is_started = 0;
     client.log_callback = nullptr;
-
-    MOCK_WEAK_DISABLE(pthread_create);
-    MOCK_WEAK_DISABLE(pthread_kill);
-    MOCK_WEAK_DISABLE(pthread_join);
-
-    ini_signal();
 
     MOCK_WEAK_EXPECT_CALL(udtcp_client_poll, (_,_))
     .WillOnce(Return(UDTCP_POLL_ERROR));
 
+    MOCK_WEAK_EXPECT_CALL(pthread_create, (_,_,_,_))
+    .WillOnce(Invoke(
+        [](pthread_t * __newthread, const pthread_attr_t * __attr, void *(*__start_routine)(void *), void * __arg){
+            (void)__newthread;
+            (void)__attr;
+            __start_routine(__arg);
+            return 0;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(pthread_kill, (_,_))
+    .WillOnce(Return(0));
+
+    MOCK_WEAK_EXPECT_CALL(pthread_join, (_,_))
+    .WillOnce(Return(0));
+
     EXPECT_EQ(0, udtcp_start_client(&client));
-    usleep(1000);
     EXPECT_EQ(0, client.is_started);
     udtcp_stop_client(&client);
 }
 
-GTEST_TEST(udtcp, start_stop_client_end_by_signal)
+GTEST_TEST(udtcp_start_client__udtcp_stop_client, end_by_signal)
 {
     udtcp_client client;
     client.poll_loop = 0;
     client.is_started = 0;
     client.log_callback = nullptr;
 
-    MOCK_WEAK_DISABLE(pthread_create);
-    MOCK_WEAK_DISABLE(pthread_kill);
-    MOCK_WEAK_DISABLE(pthread_join);
-
-    ini_signal();
-
     MOCK_WEAK_EXPECT_CALL(udtcp_client_poll, (_,_))
     .WillOnce(Return(UDTCP_POLL_SIGNAL));
 
+    MOCK_WEAK_EXPECT_CALL(pthread_create, (_,_,_,_))
+    .WillOnce(Invoke(
+        [](pthread_t * __newthread, const pthread_attr_t * __attr, void *(*__start_routine)(void *), void * __arg){
+            (void)__newthread;
+            (void)__attr;
+            __start_routine(__arg);
+            return 0;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(pthread_kill, (_,_))
+    .WillOnce(Return(0));
+
+    MOCK_WEAK_EXPECT_CALL(pthread_join, (_,_))
+    .WillOnce(Return(0));
+
     EXPECT_EQ(0, udtcp_start_client(&client));
-    usleep(1000);
     EXPECT_EQ(0, client.is_started);
     udtcp_stop_client(&client);
 }

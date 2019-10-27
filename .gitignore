@@ -1,6 +1,9 @@
 *.a
 *.d
 *.log
+*.gcda
+*.gcno
+*.gcov
 *.o
 .*
 **/bin

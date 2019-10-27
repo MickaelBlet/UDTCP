@@ -171,6 +171,16 @@ clean:
 	$(OBJECT_RELEASE:.o=.d) \
 	$(OBJECT_TEST) \
 	$(OBJECT_TEST:.o=.d) \
+	$(LIBRARY_OBJECT_DEBUG:.o=.gcda) \
+	$(LIBRARY_OBJECT_DEBUG:.o=.gcno) \
+	$(LIBRARY_OBJECT_RELEASE:.o=.gcda) \
+	$(LIBRARY_OBJECT_RELEASE:.o=.gcno) \
+	$(OBJECT_DEBUG:.o=.gcda) \
+	$(OBJECT_DEBUG:.o=.gcno) \
+	$(OBJECT_RELEASE:.o=.gcda) \
+	$(OBJECT_RELEASE:.o=.gcno) \
+	$(OBJECT_TEST:.o=.gcda) \
+	$(OBJECT_TEST:.o=.gcno) \
 	)
 
 fclean:			clean

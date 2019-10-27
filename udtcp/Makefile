@@ -75,7 +75,7 @@ DEBUG_COMPILER			=	$(CC)
 RELEASE_COMPILER		=	$(CC)
 TEST_COMPILER			=	$(CXX)
 
-DEBUG_FLAGS				=	-Wall -Wextra -Wpedantic -ggdb3
+DEBUG_FLAGS				=	-Wall -Wextra -Wpedantic -ggdb3 -fprofile-arcs -ftest-coverage
 RELEASE_FLAGS			=	-O2 -Wall -Wextra -Werror -Wpedantic
 TEST_FLAGS				=	-std=c++11 -Wall -Wextra -ggdb3
 
@@ -87,7 +87,7 @@ TEST_OPTIONS			=	-DVERSION=\"$(VERSION)\" -DDEBUG \
 							-I$(INCLUDE_DIRECTORY) \
 							-L$(LIBRARY_DIRECTORY) \
 							-l$(LIBRARY_NAME)-debug \
-							-lgtest -lgtest_main -lgmock -lpthread -ldl
+							-lgtest -lgtest_main -lgmock -lpthread -ldl -lgcov --coverage
 
 DEBUG_DEPENDENCIES		=
 RELEASE_DEPENDENCIES	=
@@ -101,6 +101,10 @@ exe_test:	test
 
 valgrind_exe_test:	test
 	@$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n";\
-	valgrind --leak-check=yes $(bin) || exit;)
+	valgrind --leak-check=full --show-leak-kinds=all $(bin) || exit;)
+
+gcov_test: test
+	@$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n";\
+	valgrind --leak-check=full --show-leak-kinds=all $(bin) || exit;)
 
 PHONY:
