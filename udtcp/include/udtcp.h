@@ -95,6 +95,11 @@ enum udtcp_poll_e
     }
 #endif
 
+#ifndef __GNUC__
+#ifndef __attribute__
+#define __attribute__(X) /* do nothing */
+#endif
+#endif
 
 /* if log define replace by macro */
 #ifdef UDTCP_LOG_DEBUG
@@ -226,40 +231,6 @@ typedef struct udtcp_server_s   udtcp_server;
 typedef struct udtcp_client_s   udtcp_client;
 
 /*
-SOCKET
-*/
-
-/**
- * @brief add a option in socket file descriptor
- *
- * @param socket            file descriptor of socket
- * @param option            option to add
- * @return int              zero if success or -1 for error
- */
-int udtcp_socket_add_option(int socket, int option);
-
-/**
- * @brief sub a option in socket file descriptor
- *
- * @param socket            file descriptor of socket
- * @param option            option to sub
- * @return int              zero if success or -1 for error
- */
-int udtcp_socket_sub_option(int socket, int option);
-
-/*
-UTILS
-*/
-
-/**
- * @brief transform informations of addr to string in infos
- *
- * @param infos
- * @param addr
- */
-void udtcp_set_string_infos(udtcp_infos* infos, struct sockaddr_in* addr);
-
-/*
 --------------------------------------------------------------------------------
 COMMON
 --------------------------------------------------------------------------------
@@ -313,9 +284,9 @@ int udtcp_create_client(const char* hostname,
 /**
  * @brief close all sockets, delete client, set at NULL pointer
  *
- * @param addr_client       address of client
+ * @param client            client pointer
  */
-void udtcp_delete_client(udtcp_client** addr_client);
+void udtcp_delete_client(udtcp_client* client);
 
 /**
  * @brief connect client to server and transmitting udp information
@@ -379,9 +350,9 @@ int udtcp_create_server(const char* hostname,
 /**
  * @brief close all sockets, delete server, set at NULL pointer
  *
- * @param addr_server       address of server
+ * @param server            server pointer
  */
-void udtcp_delete_server(udtcp_server** addr_server);
+void udtcp_delete_server(udtcp_server* server);
 
 /**
  * @brief poll accept and receive from client sockets

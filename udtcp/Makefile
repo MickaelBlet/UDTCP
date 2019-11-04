@@ -85,13 +85,18 @@ RELEASE_OPTIONS			=	-DVERSION=\"$(VERSION)\" \
 							-I$(INCLUDE_DIRECTORY) -lpthread
 TEST_OPTIONS			=	-DVERSION=\"$(VERSION)\" -DDEBUG \
 							-I$(INCLUDE_DIRECTORY) \
-							-L$(LIBRARY_DIRECTORY) \
-							-l$(LIBRARY_NAME)-debug \
-							-lgtest -lgtest_main -lgmock -lpthread -ldl -lgcov --coverage
+							-L$(LIBRARY_DIRECTORY)debug/ \
+							-l$(LIBRARY_NAME) \
+							-lgtest \
+							-lgtest_main \
+							-lgmock \
+							-lpthread \
+							-ldl \
+							-lgcov --coverage
 
 DEBUG_DEPENDENCIES		=
 RELEASE_DEPENDENCIES	=
-TEST_DEPENDENCIES		=	$(LIBRARY_DIRECTORY)lib$(LIBRARY_NAME)-debug.a
+TEST_DEPENDENCIES		=	$(LIBRARY_DIRECTORY)debug/lib$(LIBRARY_NAME).a
 
 include ../module.mk
 
@@ -105,6 +110,10 @@ valgrind_exe_test:	test
 
 gcov_test: test
 	@$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n";\
-	valgrind --leak-check=full --show-leak-kinds=all $(bin) || exit;)
+	$(bin) || exit;)
+	@printf %80s |tr " " "="; echo "\nGCOV RESULT(S) \"./gcov_result\"\n"
+	@gcov -r -o ./obj/debug ./test/*.cpp
+	@mkdir -p gcov_result
+	@mv *.gcov gcov_result
 
 PHONY:

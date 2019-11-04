@@ -23,31 +23,43 @@
  * SOFTWARE.
  */
 
-#include <arpa/inet.h>  /* inet_ntoa */
-#include <netdb.h>      /* gethostbyaddr */
-#include <string.h>     /* memcpy, strlen */
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "udtcp.h"
 
 __attribute__((weak))
-void udtcp_set_string_infos(udtcp_infos* infos, struct sockaddr_in* addr)
+uint8_t* udtcp_new_buffer(uint32_t size)
 {
-    struct hostent* host_entity;
-    const char*     ip;
-    size_t          ip_lentgh;
+    return ((uint8_t*)malloc(size * sizeof(uint8_t)));
+}
 
-    host_entity = gethostbyaddr(addr, sizeof(struct in_addr), AF_INET);
-    if (host_entity != NULL)
-    {
-        memcpy(infos->hostname, host_entity->h_name, strlen(host_entity->h_name));
-        ip = inet_ntoa(addr->sin_addr);
-        memcpy(infos->ip, ip, strlen(ip));
-    }
-    else
-    {
-        ip = inet_ntoa(addr->sin_addr);
-        ip_lentgh = strlen(ip);
-        memcpy(infos->ip, ip, ip_lentgh);
-        memcpy(infos->hostname, ip, ip_lentgh);
-    }
+__attribute__((weak))
+void udtcp_free_buffer(uint8_t* buffer)
+{
+    free(buffer);
+}
+
+__attribute__((weak))
+udtcp_client* udtcp_new_client(void)
+{
+    return ((udtcp_client*)malloc(sizeof(udtcp_client)));
+}
+
+__attribute__((weak))
+void udtcp_free_client(udtcp_client* client)
+{
+    free(client);
+}
+
+__attribute__((weak))
+udtcp_server* udtcp_new_server(void)
+{
+    return ((udtcp_server*)malloc(sizeof(udtcp_server)));
+}
+
+__attribute__((weak))
+void udtcp_free_server(udtcp_server* server)
+{
+    free(server);
 }

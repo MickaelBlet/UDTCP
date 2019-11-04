@@ -1,3 +1,28 @@
+/**
+ * udtcp
+ *
+ * Licensed under the MIT License <http://opensource.org/licenses/MIT>.
+ * Copyright (c) 2019 BLET Mickaël.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include <sys/socket.h>
 #include <netdb.h>
 #include <fcntl.h>
@@ -7,7 +32,9 @@
 #include <unistd.h>
 
 #include "udtcp.h"
+#include "udtcp_utils.h"
 
+__attribute__((weak))
 int udtcp_create_server(const char* hostname,
     uint16_t tcp_port, uint16_t udp_server_port, uint16_t udp_client_port,
     udtcp_server** out_server)
@@ -30,7 +57,7 @@ int udtcp_create_server(const char* hostname,
     host_addr = *((in_addr_t*)host_entity->h_addr_list[0]);
 
     /* create a new server */
-    server = (udtcp_server*)malloc(sizeof(udtcp_server));
+    server = udtcp_new_server();
     if (server == NULL)
         return (-1);
 
@@ -45,7 +72,7 @@ int udtcp_create_server(const char* hostname,
         {
             for (i = i - 1; i > 2; --i)
                 pthread_mutex_destroy(&(server->sends[i].mutex));
-            free(server);
+            udtcp_free_server(server);
             return (-1);
         }
     }
@@ -60,7 +87,9 @@ int udtcp_create_server(const char* hostname,
                                                   IPPROTO_TCP);
     if (server->server_infos->tcp_socket < 0)
     {
-        free(server);
+        for (i = 2; i < UDTCP_POLL_TABLE_SIZE; ++i)
+            pthread_mutex_destroy(&(server->sends[i].mutex));
+        udtcp_free_server(server);
         return (-1);
     }
     /* define poll position */
@@ -74,8 +103,10 @@ int udtcp_create_server(const char* hostname,
                                                          IPPROTO_UDP);
     if (server->server_infos->udp_server_socket < 0)
     {
+        for (i = 2; i < UDTCP_POLL_TABLE_SIZE; ++i)
+            pthread_mutex_destroy(&(server->sends[i].mutex));
         close(server->server_infos->tcp_socket);
-        free(server);
+        udtcp_free_server(server);
         return (-1);
     }
     /* define poll position */
@@ -89,9 +120,11 @@ int udtcp_create_server(const char* hostname,
                                                          IPPROTO_UDP);
     if (server->server_infos->udp_client_socket < 0)
     {
+        for (i = 2; i < UDTCP_POLL_TABLE_SIZE; ++i)
+            pthread_mutex_destroy(&(server->sends[i].mutex));
         close(server->server_infos->tcp_socket);
         close(server->server_infos->udp_server_socket);
-        free(server);
+        udtcp_free_server(server);
         return (-1);
     }
 
@@ -108,14 +141,14 @@ int udtcp_create_server(const char* hostname,
         (struct sockaddr*)&(server->server_infos->tcp_addr),
         sizeof(struct sockaddr_in)) != 0)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
     if (getsockname(server->server_infos->tcp_socket,
         (struct sockaddr*)&(server->server_infos->tcp_addr),
         &len_addr) == -1)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
 
@@ -132,14 +165,14 @@ int udtcp_create_server(const char* hostname,
         (struct sockaddr*)&(server->server_infos->udp_server_addr),
         sizeof(struct sockaddr_in)) != 0)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
     if (getsockname(server->server_infos->udp_server_socket,
         (struct sockaddr*)&(server->server_infos->udp_server_addr),
         &len_addr) == -1)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
 
@@ -156,14 +189,14 @@ int udtcp_create_server(const char* hostname,
         (struct sockaddr*)&(server->server_infos->udp_client_addr),
         sizeof(struct sockaddr_in)) != 0)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
     if (getsockname(server->server_infos->udp_client_socket,
         (struct sockaddr*)&(server->server_infos->udp_client_addr),
         &len_addr) == -1)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
 
@@ -178,7 +211,7 @@ int udtcp_create_server(const char* hostname,
     /* prepare to accept client */
     if (listen(server->server_infos->tcp_socket, 10) != 0)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
 
@@ -186,13 +219,13 @@ int udtcp_create_server(const char* hostname,
     if (udtcp_socket_add_option(server->server_infos->tcp_socket,
         O_NONBLOCK) == -1)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
     if (udtcp_socket_add_option(server->server_infos->udp_server_socket,
         O_NONBLOCK) == -1)
     {
-        udtcp_delete_server(&server);
+        udtcp_delete_server(server);
         return (-1);
     }
 

@@ -1,10 +1,35 @@
+/**
+ * udtcp
+ *
+ * Licensed under the MIT License <http://opensource.org/licenses/MIT>.
+ * Copyright (c) 2019 BLET Mickaël.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include <arpa/inet.h>  /* inet_ntoa */
 #include <errno.h>      /* errno */
-#include <stdlib.h>     /* malloc, free */
 #include <string.h>     /* strerror */
 #include <unistd.h>     /* close */
 
 #include "udtcp.h"
+#include "udtcp_utils.h"
 
 static int receive_tcp(udtcp_client* client, udtcp_infos* server_infos)
 {
@@ -37,7 +62,7 @@ static int receive_tcp(udtcp_client* client, udtcp_infos* server_infos)
     /* need reallocate buffer */
     if (data_size > client->buffer_size)
     {
-        new_buffer_data = (uint8_t*)malloc(data_size * sizeof(uint8_t));
+        new_buffer_data = udtcp_new_buffer(data_size);
         /* malloc error */
         if (new_buffer_data == NULL)
         {
@@ -46,7 +71,7 @@ static int receive_tcp(udtcp_client* client, udtcp_infos* server_infos)
         }
         /* delete last buffer */
         if (client->buffer_data != NULL)
-            free(client->buffer_data);
+            udtcp_free_buffer(client->buffer_data);
         /* set new buffer */
         client->buffer_data = new_buffer_data;
         client->buffer_size = data_size;
@@ -155,7 +180,7 @@ static int receive_udp(udtcp_client* client, udtcp_infos* server_infos)
     /* need reallocate buffer */
     if (sizeof(uint32_t) + data_size > client->buffer_size)
     {
-        new_buffer_data = (uint8_t*)malloc(data_size + sizeof(uint32_t));
+        new_buffer_data = udtcp_new_buffer(sizeof(uint32_t) + data_size);
         /* malloc error */
         if (new_buffer_data == NULL)
         {
@@ -164,7 +189,7 @@ static int receive_udp(udtcp_client* client, udtcp_infos* server_infos)
         }
         /* delete last buffer */
         if (client->buffer_data != NULL)
-            free(client->buffer_data);
+            udtcp_free_buffer(client->buffer_data);
         /* set new buffer */
         client->buffer_data = new_buffer_data;
         client->buffer_size = data_size + sizeof(uint32_t);
@@ -244,6 +269,7 @@ static void disconnect(udtcp_client* client, udtcp_infos* server_infos)
         client->disconnect_callback(client, server_infos);
 }
 
+__attribute__((weak))
 enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout)
 {
     size_t  i;

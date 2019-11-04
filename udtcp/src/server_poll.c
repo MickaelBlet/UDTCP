@@ -1,3 +1,28 @@
+/**
+ * udtcp
+ *
+ * Licensed under the MIT License <http://opensource.org/licenses/MIT>.
+ * Copyright (c) 2019 BLET Mickaël.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include <fcntl.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -5,6 +30,7 @@
 #include <unistd.h>
 
 #include "udtcp.h"
+#include "udtcp_utils.h"
 
 static int initialize_connection(udtcp_server* server,
     udtcp_infos* client_infos)
@@ -178,7 +204,9 @@ static int receive_tcp(udtcp_server *server, udtcp_infos *client_infos)
     uint8_t*        new_buffer_data;
 
     /* receive data size */
-    ret_recv = recv(client_infos->tcp_socket, &data_size, sizeof(uint32_t), 0);
+    ret_recv = recv(client_infos->tcp_socket,
+        &data_size,
+        sizeof(uint32_t), 0);
     /* recv error */
     if (ret_recv < 0)
         return (-1);
@@ -199,26 +227,25 @@ static int receive_tcp(udtcp_server *server, udtcp_infos *client_infos)
     /* need reallocate buffer */
     if (data_size > server->buffer_size)
     {
-        new_buffer_data = (uint8_t*)malloc(data_size);
+        new_buffer_data = udtcp_new_buffer(data_size);
         /* malloc error */
         if (new_buffer_data == NULL)
         {
-            UDTCP_LOG_ERROR(server, "[%lu]%s:%hu TCP recv: size too big (%u)",
-                client_infos->id,
-                client_infos->hostname,
-                client_infos->tcp_port, data_size);
+            UDTCP_LOG_ERROR(server, "malloc: %s", strerror(errno));
             return (-1);
         }
         /* delete last buffer */
         if (server->buffer_data != NULL)
-            free(server->buffer_data);
+            udtcp_free_buffer(server->buffer_data);
         /* set new buffer */
         server->buffer_data = new_buffer_data;
         server->buffer_size = data_size;
     }
 
     /* receive data */
-    ret_recv = recv(client_infos->tcp_socket, server->buffer_data, data_size, 0);
+    ret_recv = recv(client_infos->tcp_socket,
+        server->buffer_data,
+        data_size, 0);
     /* recv error */
     if (ret_recv < 0)
         return (-1);
@@ -323,9 +350,9 @@ static int receive_udp(udtcp_server *server, udtcp_infos *server_infos)
     }
 
     /* need reallocate buffer */
-    if (data_size + sizeof(uint32_t) > server->buffer_size)
+    if (sizeof(uint32_t) + data_size > server->buffer_size)
     {
-        new_buffer_data = (uint8_t*)malloc(data_size + sizeof(uint32_t));
+        new_buffer_data = udtcp_new_buffer(sizeof(uint32_t) + data_size);
         /* malloc error */
         if (new_buffer_data == NULL)
         {
@@ -337,7 +364,7 @@ static int receive_udp(udtcp_server *server, udtcp_infos *server_infos)
         }
         /* delete last buffer */
         if (server->buffer_data != NULL)
-            free(server->buffer_data);
+            udtcp_free_buffer(server->buffer_data);
         /* set new buffer */
         server->buffer_data = new_buffer_data;
         server->buffer_size = data_size + sizeof(uint32_t);
@@ -409,6 +436,7 @@ static void disconnect(udtcp_server *server, udtcp_infos *client_infos)
         server->disconnect_callback(server, client_infos);
 }
 
+__attribute__((weak))
 enum udtcp_poll_e udtcp_server_poll(udtcp_server *server, long timeout)
 {
     size_t i;

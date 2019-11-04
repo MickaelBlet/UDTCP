@@ -1,3 +1,28 @@
+/**
+ * udtcp
+ *
+ * Licensed under the MIT License <http://opensource.org/licenses/MIT>.
+ * Copyright (c) 2019 BLET Mickaël.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include <netdb.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -7,7 +32,9 @@
 #include <arpa/inet.h>
 
 #include "udtcp.h"
+#include "udtcp_utils.h"
 
+__attribute__((weak))
 int udtcp_create_client(const char* hostname,
     uint16_t tcp_port, uint16_t udp_server_port, uint16_t udp_client_port,
     udtcp_client** out_client)
@@ -30,7 +57,7 @@ int udtcp_create_client(const char* hostname,
     memcpy(&host_addr, host_entity->h_addr_list[0], sizeof(in_addr_t));
 
     /* create a new client */
-    client = (udtcp_client*)malloc(sizeof(udtcp_client));
+    client = udtcp_new_client();
     if (client == NULL)
         return (-1);
 
@@ -40,7 +67,7 @@ int udtcp_create_client(const char* hostname,
     /* init send mutex */
     if (pthread_mutex_init(&(client->send.mutex), NULL) != 0)
     {
-        udtcp_delete_client(&client);
+        udtcp_free_client(client);
         return (-1);
     }
 
@@ -54,7 +81,8 @@ int udtcp_create_client(const char* hostname,
                                                   IPPROTO_TCP);
     if (client->client_infos->tcp_socket < 0)
     {
-        free(client);
+        pthread_mutex_destroy(&(client->send.mutex));
+        udtcp_free_client(client);
         return (-1);
     }
     /* create udp server socket */
@@ -63,8 +91,9 @@ int udtcp_create_client(const char* hostname,
                                                          IPPROTO_UDP);
     if (client->client_infos->udp_server_socket < 0)
     {
+        pthread_mutex_destroy(&(client->send.mutex));
         close(client->client_infos->tcp_socket);
-        free(client);
+        udtcp_free_client(client);
         return (-1);
     }
     /* create udp client socket */
@@ -73,9 +102,10 @@ int udtcp_create_client(const char* hostname,
                                                          IPPROTO_UDP);
     if (client->client_infos->udp_client_socket < 0)
     {
+        pthread_mutex_destroy(&(client->send.mutex));
         close(client->client_infos->tcp_socket);
         close(client->client_infos->udp_server_socket);
-        free(client);
+        udtcp_free_client(client);
         return (-1);
     }
 
@@ -88,7 +118,7 @@ int udtcp_create_client(const char* hostname,
      || setsockopt(client->client_infos->udp_client_socket,
                    SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return (-1);
     }
 
@@ -100,7 +130,7 @@ int udtcp_create_client(const char* hostname,
      || setsockopt(client->client_infos->udp_server_socket,
                    SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(int)) == -1)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return (-1);
     }
 #endif
@@ -118,14 +148,14 @@ int udtcp_create_client(const char* hostname,
         (struct sockaddr*)&(client->client_infos->tcp_addr),
         sizeof(struct sockaddr_in)) != 0)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return -1;
     }
     if (getsockname(client->client_infos->tcp_socket,
         (struct sockaddr*)&(client->client_infos->tcp_addr),
         &len_addr) == -1)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return -1;
     }
 
@@ -142,14 +172,14 @@ int udtcp_create_client(const char* hostname,
         (struct sockaddr*)&(client->client_infos->udp_server_addr),
         sizeof(struct sockaddr_in)) != 0)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return -1;
     }
     if (getsockname(client->client_infos->udp_server_socket,
         (struct sockaddr*)&(client->client_infos->udp_server_addr),
         &len_addr) == -1)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return -1;
     }
 
@@ -166,14 +196,14 @@ int udtcp_create_client(const char* hostname,
         (struct sockaddr*)&(client->client_infos->udp_client_addr),
         sizeof(struct sockaddr_in)) != 0)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return -1;
     }
     if (getsockname(client->client_infos->udp_client_socket,
         (struct sockaddr*)&(client->client_infos->udp_client_addr),
         &len_addr) == -1)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return -1;
     }
 
@@ -189,13 +219,13 @@ int udtcp_create_client(const char* hostname,
     if (udtcp_socket_add_option(client->client_infos->tcp_socket,
         O_NONBLOCK) == -1)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return -1;
     }
     if (udtcp_socket_add_option(client->client_infos->udp_server_socket,
         O_NONBLOCK) == -1)
     {
-        udtcp_delete_client(&client);
+        udtcp_delete_client(client);
         return -1;
     }
 
