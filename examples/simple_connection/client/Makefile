@@ -81,23 +81,24 @@ TEST_FLAGS				=	-std=c++11 -Wall -Wextra -ggdb3
 
 DEBUG_OPTIONS			=	-DVERSION=\"$(VERSION)\" \
 							-I$(INCLUDE_DIRECTORY) -I../../../udtcp/include \
-							-L$(LIBRARY_DIRECTORY) \
-							-ludtcp-debug \
-							-lpthread
+							-L$(LIBRARY_DIRECTORY)debug/ \
+							-ludtcp \
+							-lpthread \
+							-lgcov --coverage
 RELEASE_OPTIONS			=	-DVERSION=\"$(VERSION)\" \
 							-I$(INCLUDE_DIRECTORY) -I../../../udtcp/include \
-							-L$(LIBRARY_DIRECTORY) \
-							-ludtcp-release \
+							-L$(LIBRARY_DIRECTORY)release/ \
+							-ludtcp \
 							-lpthread
 TEST_OPTIONS			=	-DVERSION=\"$(VERSION)\" \
 							-I$(INCLUDE_DIRECTORY) \
-							-L$(LIBRARY_DIRECTORY) \
-							-l$(LIBRARY_NAME)-debug \
+							-L$(LIBRARY_DIRECTORY)debug/ \
+							-l$(LIBRARY_NAME) \
 							-lgtest -lgtest_main -lgmock -lpthread
 
-DEBUG_DEPENDENCIES		=	${LIBRARY_DIRECTORY}libudtcp-debug.a
-RELEASE_DEPENDENCIES	=	${LIBRARY_DIRECTORY}libudtcp-release.a
-TEST_DEPENDENCIES		=	$(LIBRARY_DIRECTORY)lib$(LIBRARY_NAME)-debug.a
+DEBUG_DEPENDENCIES		=	${LIBRARY_DIRECTORY}debug/libudtcp.a
+RELEASE_DEPENDENCIES	=	${LIBRARY_DIRECTORY}release/libudtcp.a
+TEST_DEPENDENCIES		=	$(LIBRARY_DIRECTORY)debug/lib$(LIBRARY_NAME).a
 
 include ../../../module.mk
 

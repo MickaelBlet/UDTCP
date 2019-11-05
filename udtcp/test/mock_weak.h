@@ -79,7 +79,8 @@ struct MOCK_WEAK_CAT_(Mock_weak_, _name) { \
   MOCK_WEAK_CAT_(MOCK_METHOD, _lvl)(_name, __VA_ARGS__); \
   static Mock_weak_##_name &instance() { static Mock_weak_##_name singleton; return singleton; } \
 }; \
-GMOCK_RESULT_(,__VA_ARGS__) __attribute__((weak)) _name(MOCK_WEAK_CAT_(MOCK_WEAK_CAT_(MOCK_WEAK_REAPEAT_, _lvl), _)(MOCK_WEAK_ARG_DECLARATION_, __VA_ARGS__)) { \
+__attribute__((weak)) \
+GMOCK_RESULT_(,__VA_ARGS__) _name(MOCK_WEAK_CAT_(MOCK_WEAK_CAT_(MOCK_WEAK_REAPEAT_, _lvl), _)(MOCK_WEAK_ARG_DECLARATION_, __VA_ARGS__)) { \
   return Mock_weak_##_name::instance()._name(MOCK_WEAK_CAT_(MOCK_WEAK_CAT_(MOCK_WEAK_REAPEAT_, _lvl), _)(MOCK_WEAK_ARG_NAME_, __VA_ARGS__)); \
 }
 # endif

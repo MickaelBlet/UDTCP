@@ -152,7 +152,7 @@ int main(void)
         break;
     }
 
-    udtcp_delete_client(&client);
+    udtcp_delete_client(client);
 
     return (0);
 }

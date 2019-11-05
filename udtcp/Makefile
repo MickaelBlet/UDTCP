@@ -102,7 +102,7 @@ include ../module.mk
 
 exe_test:	test
 	@$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n";\
-	$(bin) || exit;)
+	$(bin) --gtest_shuffle --gtest_repeat=10 || exit;)
 
 valgrind_exe_test:	test
 	@$(foreach bin,$(BINARIES_TEST),printf %80s |tr " " "="; echo "\n$(bin)\n";\

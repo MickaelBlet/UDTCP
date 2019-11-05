@@ -133,7 +133,7 @@ int main(void)
     /* kill and join poll thread */
     udtcp_stop_server(server);
 
-    udtcp_delete_server(&server);
+    udtcp_delete_server(server);
 
     return (0);
 }

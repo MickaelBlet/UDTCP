@@ -28,6 +28,10 @@
 
 #include "udtcp.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
 --------------------------------------------------------------------------------
 SOCKET
@@ -114,5 +118,9 @@ udtcp_server* udtcp_new_server(void);
  * @param buffer
  */
 void udtcp_free_server(udtcp_server* server);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

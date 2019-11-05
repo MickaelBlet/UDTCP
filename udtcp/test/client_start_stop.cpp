@@ -9,10 +9,16 @@ using ::testing::Return;
 
 #define DGTEST_TEST(a, b) GTEST_TEST(a, DISABLED_##b)
 
+// libc
+MOCK_WEAK_DECLTYPE_METHOD4(pthread_create);
+MOCK_WEAK_DECLTYPE_METHOD2(pthread_kill);
+MOCK_WEAK_DECLTYPE_METHOD2(pthread_join);
+
+// udtcp
+MOCK_WEAK_DECLTYPE_METHOD2(udtcp_client_poll);
+
 // Start
 //------------------------------------------------------------------------------
-
-MOCK_WEAK_DECLTYPE_METHOD4(pthread_create);
 
 GTEST_TEST(udtcp_start_client, success)
 {
@@ -54,9 +60,6 @@ GTEST_TEST(udtcp_start_client, fail2)
 // Stop
 //------------------------------------------------------------------------------
 
-MOCK_WEAK_DECLTYPE_METHOD2(pthread_kill);
-MOCK_WEAK_DECLTYPE_METHOD2(pthread_join);
-
 GTEST_TEST(udtcp_stop_client, success)
 {
     udtcp_client client;
@@ -85,8 +88,6 @@ GTEST_TEST(udtcp_stop_client, fail1)
 
 // Start Stop
 //------------------------------------------------------------------------------
-
-MOCK_WEAK_DECLTYPE_METHOD2(udtcp_client_poll);
 
 GTEST_TEST(udtcp_start_client__udtcp_stop_client, end_by_error)
 {

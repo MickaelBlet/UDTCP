@@ -2,7 +2,7 @@
 ## Author: Mickaël BLET
 ##
 
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # default template values
 
 DEFAULT_MODE					=	debug
@@ -41,7 +41,7 @@ DEFAULT_DEBUG_DEPENDENCIES		=
 DEFAULT_RELEASE_DEPENDENCIES	=
 DEFAULT_TEST_DEPENDENCIES		=
 
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # Can be modified out template
 
 MODE						:=	$(if $(strip $(MODE)),$(MODE),$(DEFAULT_MODE))
@@ -79,32 +79,38 @@ DEBUG_DEPENDENCIES			:=	$(if $(strip $(DEBUG_DEPENDENCIES)),$(DEBUG_DEPENDENCIES
 RELEASE_DEPENDENCIES		:=	$(if $(strip $(RELEASE_DEPENDENCIES)),$(RELEASE_DEPENDENCIES),$(DEFAULT_RELEASE_DEPENDENCIES))
 TEST_DEPENDENCIES			:=	$(if $(strip $(TEST_DEPENDENCIES)),$(TEST_DEPENDENCIES) $(DEFAULT_TEST_DEPENDENCIES))
 
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
 FIND_SOURCE					=	$(shell find $(SOURCE_DIRECTORY) -name "*$(SOURCE_EXTENTION)")
 FIND_TEST					=	$(shell find $(TEST_DIRECTORY) -name "*.cpp")
 SOURCE						:=	$(subst $(SOURCE_DIRECTORY),,$(FIND_SOURCE))
 TEST						:=	$(subst $(TEST_DIRECTORY),,$(FIND_TEST))
 
-OBJECT_DIRECTORIES			:=	$(addprefix $(OBJECT_DIRECTORY),$(sort $(dir $(SOURCE))) $(sort $(dir $(TEST))))
+OBJECT_DIRECTORY_DEBUG		:=	$(OBJECT_DIRECTORY)debug/
+OBJECT_DIRECTORY_RELEASE	:=	$(OBJECT_DIRECTORY)release/
+OBJECT_DIRECTORY_TEST		:=	$(OBJECT_DIRECTORY)test/
+
+OBJECT_DIRECTORIES_DEBUG	:=	$(addprefix $(OBJECT_DIRECTORY_DEBUG),$(sort $(dir $(SOURCE))))
+OBJECT_DIRECTORIES_RELEASE	:=	$(addprefix $(OBJECT_DIRECTORY_RELEASE),$(sort $(dir $(SOURCE))))
+OBJECT_DIRECTORIES_TEST		:=	$(addprefix $(OBJECT_DIRECTORY_TEST),$(sort $(dir $(TEST))))
 
 SOURCE_FILTER				:=	$(filter-out $(BINARY_EXCLUDE_SOURCE),$(SOURCE))
 LIBRARY_SOURCE_FILTER		:=	$(filter-out $(LIBRARY_EXCLUDE_SOURCE),$(SOURCE))
 TEST_SOURCE_FILTER			:=	$(filter-out $(TEST_EXCLUDE_SOURCE),$(TEST))
 
-OBJECT_DEBUG				:=	$(addprefix $(OBJECT_DIRECTORY),$(SOURCE_FILTER:$(SOURCE_EXTENTION)=-debug-$(VERSION).o))
-OBJECT_RELEASE				:=	$(addprefix $(OBJECT_DIRECTORY),$(SOURCE_FILTER:$(SOURCE_EXTENTION)=-release-$(VERSION).o))
-LIBRARY_OBJECT_DEBUG		:=	$(addprefix $(OBJECT_DIRECTORY),$(LIBRARY_SOURCE_FILTER:$(SOURCE_EXTENTION)=-debug-$(VERSION).o))
-LIBRARY_OBJECT_RELEASE		:=	$(addprefix $(OBJECT_DIRECTORY),$(LIBRARY_SOURCE_FILTER:$(SOURCE_EXTENTION)=-release-$(VERSION).o))
-OBJECT_TEST					:=	$(addprefix $(OBJECT_DIRECTORY),$(TEST_SOURCE_FILTER:.cpp=-test-$(VERSION).o))
+OBJECT_DEBUG				:=	$(addprefix $(OBJECT_DIRECTORY_DEBUG),$(SOURCE_FILTER:$(SOURCE_EXTENTION)=.o))
+OBJECT_RELEASE				:=	$(addprefix $(OBJECT_DIRECTORY_RELEASE),$(SOURCE_FILTER:$(SOURCE_EXTENTION)=.o))
+LIBRARY_OBJECT_DEBUG		:=	$(addprefix $(OBJECT_DIRECTORY_DEBUG),$(LIBRARY_SOURCE_FILTER:$(SOURCE_EXTENTION)=.o))
+LIBRARY_OBJECT_RELEASE		:=	$(addprefix $(OBJECT_DIRECTORY_RELEASE),$(LIBRARY_SOURCE_FILTER:$(SOURCE_EXTENTION)=.o))
+OBJECT_TEST					:=	$(addprefix $(OBJECT_DIRECTORY_TEST),$(TEST_SOURCE_FILTER:.cpp=.o))
 
-LIBRARY_DEBUG				:=	$(LIBRARY_DIRECTORY)lib$(basename $(LIBRARY_NAME))-debug.a
-LIBRARY_RELEASE				:=	$(LIBRARY_DIRECTORY)lib$(basename $(LIBRARY_NAME))-release.a
-BINARY_DEBUG				:=	$(BINARY_DIRECTORY)$(BINARY_NAME)-debug
-BINARY_RELEASE				:=	$(BINARY_DIRECTORY)$(BINARY_NAME)-release
-BINARIES_TEST				:=	$(addprefix $(BINARY_DIRECTORY),$(TEST_SOURCE_FILTER:.cpp=-test))
+LIBRARY_DEBUG				:=	$(LIBRARY_DIRECTORY)debug/lib$(basename $(LIBRARY_NAME)).a
+LIBRARY_RELEASE				:=	$(LIBRARY_DIRECTORY)release/lib$(basename $(LIBRARY_NAME)).a
+BINARY_DEBUG				:=	$(BINARY_DIRECTORY)debug/$(BINARY_NAME)
+BINARY_RELEASE				:=	$(BINARY_DIRECTORY)release/$(BINARY_NAME)
+BINARIES_TEST				:=	$(addprefix $(BINARY_DIRECTORY),$(TEST_SOURCE_FILTER:.cpp=_gtest))
 
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
 COLOR_SHELL_DEBUG			=	$$(tput setaf 3)
 COLOR_SHELL_RELEASE			=	$$(tput setaf 2)
@@ -115,41 +121,44 @@ STRING_PRINT_DEBUG			=	"$(COLOR_SHELL_DEBUG)[----------] \n[ DEBUG    ] $(COLOR_
 STRING_PRINT_RELEASE		=	"$(COLOR_SHELL_RELEASE)[----------] \n[ RELEASE  ] $(COLOR_SHELL_RESET)%s$(COLOR_SHELL_RELEASE)\n[----------] $(COLOR_SHELL_RESET)\n"
 STRING_PRINT_TEST			=	"$(COLOR_SHELL_TEST)[----------] \n[ TEST     ] $(COLOR_SHELL_RESET)%s$(COLOR_SHELL_TEST)\n[----------] $(COLOR_SHELL_RESET)\n"
 
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
 all:	$(MODE)
 
-$(sort $(LIBRARY_DIRECTORY) $(BINARY_DIRECTORY) $(sort $(dir $(BINARIES_TEST))) $(OBJECT_DIRECTORIES)):
+$(sort $(dir $(LIBRARY_DEBUG)) $(dir $(LIBRARY_RELEASE)) $(dir $(BINARY_DEBUG)) $(dir $(BINARY_RELEASE)) $(dir $(BINARIES_TEST))):
+	mkdir -p $@
+
+$(sort $(OBJECT_DIRECTORIES_DEBUG) $(OBJECT_DIRECTORIES_RELEASE) $(OBJECT_DIRECTORIES_TEST)):
 	mkdir -p $@
 
 # object rules
-$(OBJECT_DIRECTORY)%-debug-$(VERSION).o:	$(SOURCE_DIRECTORY)%$(SOURCE_EXTENTION) $(DEBUG_DEPENDENCIES) | $(OBJECT_DIRECTORIES)
+$(OBJECT_DIRECTORY_DEBUG)%.o:	$(SOURCE_DIRECTORY)%$(SOURCE_EXTENTION) $(DEBUG_DEPENDENCIES) | $(OBJECT_DIRECTORIES_DEBUG)
 	$(DEBUG_COMPILER) $(DEBUG_FLAGS) -MMD -c $< -o $@ $(DEBUG_OPTIONS)
 
-$(OBJECT_DIRECTORY)%-release-$(VERSION).o:	$(SOURCE_DIRECTORY)%$(SOURCE_EXTENTION) $(RELEASE_DEPENDENCIES) | $(OBJECT_DIRECTORIES)
+$(OBJECT_DIRECTORY_RELEASE)%.o:	$(SOURCE_DIRECTORY)%$(SOURCE_EXTENTION) $(RELEASE_DEPENDENCIES) | $(OBJECT_DIRECTORIES_RELEASE)
 	$(RELEASE_COMPILER) $(RELEASE_FLAGS) -MMD -c $< -o $@ $(RELEASE_OPTIONS)
 
-$(OBJECT_DIRECTORY)%-test-$(VERSION).o:		$(TEST_DIRECTORY)%.cpp $(TEST_DEPENDENCIES) | $(OBJECT_DIRECTORIES)
+$(OBJECT_DIRECTORY_TEST)%.o:	$(TEST_DIRECTORY)%.cpp $(TEST_DEPENDENCIES) | $(OBJECT_DIRECTORIES_TEST)
 	$(TEST_COMPILER) $(TEST_FLAGS) -MMD -c $< -o $@ $(TEST_OPTIONS)
 
 # binnaries test rules
-$(BINARY_DIRECTORY)%-test:					$(OBJECT_DIRECTORY)%-test-$(VERSION).o $(TEST_DEPENDENCIES) | $(sort $(dir $(BINARIES_TEST)))
+$(BINARY_DIRECTORY)%_gtest:		$(OBJECT_DIRECTORY_TEST)%.o $(TEST_DEPENDENCIES) | $(sort $(dir $(BINARIES_TEST)))
 	$(TEST_COMPILER) $(TEST_FLAGS) -o $@ $< $(TEST_OPTIONS)
 	@printf $(STRING_PRINT_TEST) $@
 
-$(LIBRARY_DEBUG):		$(LIBRARY_OBJECT_DEBUG) | $(LIBRARY_DIRECTORY)
+$(LIBRARY_DEBUG):		$(LIBRARY_OBJECT_DEBUG) | $(dir $(LIBRARY_DEBUG))
 	ar rc $@ $^
 	@printf $(STRING_PRINT_DEBUG) $@
 
-$(LIBRARY_RELEASE):		$(LIBRARY_OBJECT_RELEASE) | $(LIBRARY_DIRECTORY)
+$(LIBRARY_RELEASE):		$(LIBRARY_OBJECT_RELEASE) | $(dir $(LIBRARY_RELEASE))
 	ar rc $@ $^
 	@printf $(STRING_PRINT_RELEASE) $@
 
-$(BINARY_DEBUG):		$(OBJECT_DEBUG) | $(BINARY_DIRECTORY)
+$(BINARY_DEBUG):		$(OBJECT_DEBUG) | $(dir $(BINARY_DEBUG))
 	$(DEBUG_COMPILER) $(DEBUG_FLAGS) -o $@ $^ $(DEBUG_OPTIONS)
 	@printf $(STRING_PRINT_DEBUG) $@
 
-$(BINARY_RELEASE):		$(OBJECT_RELEASE) | $(BINARY_DIRECTORY)
+$(BINARY_RELEASE):		$(OBJECT_RELEASE) | $(dir $(BINARY_RELEASE))
 	$(RELEASE_COMPILER) $(RELEASE_FLAGS) -o $@ $^ $(RELEASE_OPTIONS)
 	@printf $(STRING_PRINT_RELEASE) $@
 
@@ -163,22 +172,22 @@ clean:
 	$(RM) $(sort \
 	$(LIBRARY_OBJECT_DEBUG) \
 	$(LIBRARY_OBJECT_DEBUG:.o=.d) \
-	$(LIBRARY_OBJECT_RELEASE) \
-	$(LIBRARY_OBJECT_RELEASE:.o=.d) \
-	$(OBJECT_DEBUG) \
-	$(OBJECT_DEBUG:.o=.d) \
-	$(OBJECT_RELEASE) \
-	$(OBJECT_RELEASE:.o=.d) \
-	$(OBJECT_TEST) \
-	$(OBJECT_TEST:.o=.d) \
 	$(LIBRARY_OBJECT_DEBUG:.o=.gcda) \
 	$(LIBRARY_OBJECT_DEBUG:.o=.gcno) \
+	$(LIBRARY_OBJECT_RELEASE) \
+	$(LIBRARY_OBJECT_RELEASE:.o=.d) \
 	$(LIBRARY_OBJECT_RELEASE:.o=.gcda) \
 	$(LIBRARY_OBJECT_RELEASE:.o=.gcno) \
+	$(OBJECT_DEBUG) \
+	$(OBJECT_DEBUG:.o=.d) \
 	$(OBJECT_DEBUG:.o=.gcda) \
 	$(OBJECT_DEBUG:.o=.gcno) \
+	$(OBJECT_RELEASE) \
+	$(OBJECT_RELEASE:.o=.d) \
 	$(OBJECT_RELEASE:.o=.gcda) \
 	$(OBJECT_RELEASE:.o=.gcno) \
+	$(OBJECT_TEST) \
+	$(OBJECT_TEST:.o=.d) \
 	$(OBJECT_TEST:.o=.gcda) \
 	$(OBJECT_TEST:.o=.gcno) \
 	)
@@ -199,7 +208,7 @@ re:				fclean
 
 PHONY:			all debug release test lib_debug lib_release clean fclean re
 
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 
 -include $(OBJECT_DEBUG:.o=.d)
 -include $(OBJECT_RELEASE:.o=.d)

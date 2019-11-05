@@ -17,7 +17,7 @@ MOCK_WEAK_DECLTYPE_METHOD5(setsockopt);
 MOCK_WEAK_DECLTYPE_METHOD3(bind);
 MOCK_WEAK_DECLTYPE_METHOD3(getsockname);
 
-GTEST_TEST(udtcp_create_client, success)
+DGTEST_TEST(udtcp_create_client, success)
 {
     struct hostent instanceHostent;
     memset(&instanceHostent, 0, sizeof(struct hostent));
@@ -42,5 +42,5 @@ GTEST_TEST(udtcp_create_client, success)
     .WillRepeatedly(Return(0));
 
     EXPECT_EQ(0, udtcp_create_client("127.0.0.42", 4242, 4243, 4444, &out_client));
-    udtcp_delete_client(&out_client);
+    udtcp_delete_client(out_client);
 }
