@@ -91,7 +91,6 @@ TEST_OPTIONS			=	-DVERSION=\"$(VERSION)\" -DDEBUG \
 							-lgtest_main \
 							-lgmock \
 							-lpthread \
-							-ldl \
 							-lgcov --coverage
 
 DEBUG_DEPENDENCIES		=

@@ -12,6 +12,8 @@ using ::testing::Return;
 // udtcp
 void client_receive_tcp_callback(struct udtcp_client_s* client, struct udtcp_infos_s* infos, void* data, size_t data_size);
 MOCK_WEAK_DECLTYPE_METHOD4(client_receive_tcp_callback);
+void client_receive_udp_callback(struct udtcp_client_s* client, struct udtcp_infos_s* infos, void* data, size_t data_size);
+MOCK_WEAK_DECLTYPE_METHOD4(client_receive_udp_callback);
 void client_disconnect_callback(struct udtcp_client_s* client, struct udtcp_infos_s* infos);
 MOCK_WEAK_DECLTYPE_METHOD2(client_disconnect_callback);
 MOCK_WEAK_DECLTYPE_METHOD1(udtcp_new_buffer);
@@ -19,6 +21,7 @@ MOCK_WEAK_DECLTYPE_METHOD1(udtcp_free_buffer);
 // libc
 MOCK_WEAK_DECLTYPE_METHOD3(poll);
 MOCK_WEAK_DECLTYPE_METHOD4(recv);
+MOCK_WEAK_DECLTYPE_METHOD6(recvfrom);
 MOCK_WEAK_DECLTYPE_METHOD2(shutdown);
 MOCK_WEAK_DECLTYPE_METHOD1(close);
 
@@ -62,6 +65,33 @@ GTEST_TEST(udtcp_client_poll, fail_1)
 }
 
 GTEST_TEST(udtcp_client_poll, fail_2)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].tcp_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 1;
+    client->poll_loop = 1;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__fds;
+            (void)__nfds;
+            (void)__timeout;
+            errno = EINTR;
+            return -1;
+        }
+    ));
+
+    EXPECT_EQ(UDTCP_POLL_SIGNAL, udtcp_client_poll(client, 42));
+}
+
+GTEST_TEST(udtcp_client_poll, fail_3)
 {
     errno = 0;
     udtcp_client client_instance;
@@ -1067,6 +1097,517 @@ GTEST_TEST(udtcp_client_poll, fail_tcp_receive_11)
             return (uint8_t*)::malloc(size);
         }
     ));
+
+    EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
+    free(client->buffer_data);
+}
+
+GTEST_TEST(udtcp_client_poll, success_udp_receive_1)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].udp_server_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 2;
+    client->poll_loop = 1;
+    client->receive_udp_callback = client_receive_udp_callback;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__nfds;
+            (void)__timeout;
+            __fds[0].revents |= POLLIN;
+            return 1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(recvfrom, (_, _, _, _, _, _))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            uint32_t ft = 11;
+            memcpy(__buf, &ft, sizeof(ft));
+            return sizeof(ft);
+        }
+    ))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            char buf[11] = "1234567890";
+            memcpy(__buf, &buf, 11);
+            return 11 + sizeof(uint32_t);
+        }
+    ))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            uint32_t ft = 42;
+            memcpy(__buf, &ft, sizeof(ft));
+            return sizeof(ft);
+        }
+    ))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            char buf[42] = "1234567890123456789012345678901234567890o";
+            memcpy(__buf, &buf, 42);
+            return 42 + sizeof(uint32_t);
+        }
+    ))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__buf;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            errno = EWOULDBLOCK;
+            return -1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(udtcp_new_buffer, (_))
+    .WillOnce(Invoke(
+        [](uint32_t size){
+            return (uint8_t*)::malloc(size);
+        }
+    ))
+    .WillOnce(Invoke(
+        [](uint32_t size){
+            return (uint8_t*)::malloc(size);
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(udtcp_free_buffer, (_))
+    .WillOnce(Invoke(
+        [](uint8_t* buffer){
+            ::free(buffer);
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(client_receive_udp_callback, (_, _, _, _))
+    .WillOnce(Return())
+    .WillOnce(Return());
+
+    EXPECT_EQ(UDTCP_POLL_SUCCESS, udtcp_client_poll(client, 42));
+    EXPECT_STREQ((char*)client->buffer_data, "1234567890123456789012345678901234567890o");
+    free(client->buffer_data);
+}
+
+GTEST_TEST(udtcp_client_poll, fail_udp_receive_1)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].udp_server_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 2;
+    client->poll_loop = 1;
+    client->receive_udp_callback = client_receive_udp_callback;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__nfds;
+            (void)__timeout;
+            __fds[0].revents |= POLLIN;
+            return 1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(recvfrom, (_, _, _, _, _, _))
+    .WillOnce(Return(0));
+
+    MOCK_WEAK_EXPECT_CALL(shutdown, (_, _))
+    .WillOnce(Return(-1));
+
+    MOCK_WEAK_EXPECT_CALL(close, (_))
+    .WillOnce(Return(-1));
+
+    EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
+}
+
+GTEST_TEST(udtcp_client_poll, fail_udp_receive_2)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].udp_server_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 2;
+    client->poll_loop = 1;
+    client->receive_udp_callback = client_receive_udp_callback;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__nfds;
+            (void)__timeout;
+            __fds[0].revents |= POLLIN;
+            return 1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(recvfrom, (_, _, _, _, _, _))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__buf;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            errno = 0;
+            return -1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(shutdown, (_, _))
+    .WillOnce(Return(-1));
+
+    MOCK_WEAK_EXPECT_CALL(close, (_))
+    .WillOnce(Return(-1));
+
+    EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
+}
+
+GTEST_TEST(udtcp_client_poll, fail_udp_receive_3)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].udp_server_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 2;
+    client->poll_loop = 1;
+    client->receive_udp_callback = client_receive_udp_callback;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__nfds;
+            (void)__timeout;
+            __fds[0].revents |= POLLIN;
+            return 1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(recvfrom, (_, _, _, _, _, _))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__buf;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            errno = 0;
+            return 42;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(shutdown, (_, _))
+    .WillOnce(Return(-1));
+
+    MOCK_WEAK_EXPECT_CALL(close, (_))
+    .WillOnce(Return(-1));
+
+    EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
+}
+
+GTEST_TEST(udtcp_client_poll, fail_udp_receive_4)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].udp_server_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 2;
+    client->poll_loop = 1;
+    client->receive_udp_callback = client_receive_udp_callback;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__nfds;
+            (void)__timeout;
+            __fds[0].revents |= POLLIN;
+            return 1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(recvfrom, (_, _, _, _, _, _))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            uint32_t ft = 42;
+            memcpy(__buf, &ft, sizeof(ft));
+            return sizeof(ft);
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(udtcp_new_buffer, (_))
+    .WillOnce(Invoke(
+        [](uint32_t size){
+            (void)size;
+            return (uint8_t*)NULL;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(shutdown, (_, _))
+    .WillOnce(Return(-1));
+
+    MOCK_WEAK_EXPECT_CALL(close, (_))
+    .WillOnce(Return(-1));
+
+    EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
+}
+
+GTEST_TEST(udtcp_client_poll, fail_udp_receive_5)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].udp_server_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 2;
+    client->poll_loop = 1;
+    client->receive_udp_callback = client_receive_udp_callback;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__nfds;
+            (void)__timeout;
+            __fds[0].revents |= POLLIN;
+            return 1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(recvfrom, (_, _, _, _, _, _))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            uint32_t ft = 42;
+            memcpy(__buf, &ft, sizeof(ft));
+            return sizeof(ft);
+        }
+    ))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__buf;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            return -1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(udtcp_new_buffer, (_))
+    .WillOnce(Invoke(
+        [](uint32_t size){
+            return (uint8_t*)::malloc(size);
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(shutdown, (_, _))
+    .WillOnce(Return(-1));
+
+    MOCK_WEAK_EXPECT_CALL(close, (_))
+    .WillOnce(Return(-1));
+
+    EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
+    free(client->buffer_data);
+}
+
+GTEST_TEST(udtcp_client_poll, fail_udp_receive_6)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].udp_server_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 2;
+    client->poll_loop = 1;
+    client->receive_udp_callback = client_receive_udp_callback;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__nfds;
+            (void)__timeout;
+            __fds[0].revents |= POLLIN;
+            return 1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(recvfrom, (_, _, _, _, _, _))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            uint32_t ft = 42;
+            memcpy(__buf, &ft, sizeof(ft));
+            return sizeof(ft);
+        }
+    ))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__buf;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            return 0;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(udtcp_new_buffer, (_))
+    .WillOnce(Invoke(
+        [](uint32_t size){
+            return (uint8_t*)::malloc(size);
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(shutdown, (_, _))
+    .WillOnce(Return(-1));
+
+    MOCK_WEAK_EXPECT_CALL(close, (_))
+    .WillOnce(Return(-1));
+
+    EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
+    free(client->buffer_data);
+}
+
+GTEST_TEST(udtcp_client_poll, fail_udp_receive_7)
+{
+    errno = 0;
+    udtcp_client client_instance;
+    memset(&client_instance, 0, sizeof(udtcp_client));
+    udtcp_client *client = &client_instance;
+    client->client_infos = &client->infos[0];
+    client->server_infos = &client->infos[1];
+    client->infos[0].udp_server_socket = 42;
+    client->poll_fds[0].fd = 42;
+    client->poll_nfds = 2;
+    client->poll_loop = 1;
+    client->receive_udp_callback = client_receive_udp_callback;
+
+    MOCK_WEAK_EXPECT_CALL(poll, (_, _, 42))
+    .WillOnce(Invoke(
+        [](struct pollfd *__fds, nfds_t __nfds, int __timeout){
+            (void)__nfds;
+            (void)__timeout;
+            __fds[0].revents |= POLLIN;
+            return 1;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(recvfrom, (_, _, _, _, _, _))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            uint32_t ft = 42;
+            memcpy(__buf, &ft, sizeof(ft));
+            return sizeof(ft);
+        }
+    ))
+    .WillOnce(Invoke(
+        [](int __fd, void *__restrict__ __buf, size_t __n, int __flags,
+            sockaddr *__restrict__ __addr, socklen_t *__restrict__ __addr_len){
+            (void)__fd;
+            (void)__n;
+            (void)__buf;
+            (void)__flags;
+            (void)__addr;
+            (void)__addr_len;
+            return 42;
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(udtcp_new_buffer, (_))
+    .WillOnce(Invoke(
+        [](uint32_t size){
+            return (uint8_t*)::malloc(size);
+        }
+    ));
+
+    MOCK_WEAK_EXPECT_CALL(shutdown, (_, _))
+    .WillOnce(Return(-1));
+
+    MOCK_WEAK_EXPECT_CALL(close, (_))
+    .WillOnce(Return(-1));
 
     EXPECT_EQ(UDTCP_POLL_ERROR, udtcp_client_poll(client, 42));
     free(client->buffer_data);
