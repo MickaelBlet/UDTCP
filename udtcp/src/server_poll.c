@@ -102,7 +102,7 @@ static int initialize_connection(udtcp_server* server,
     return (0);
 }
 
-static int accept_all(udtcp_server* server)
+static int accept_client(udtcp_server* server)
 {
     socklen_t       len_addr_client = sizeof(struct sockaddr_in);
     udtcp_infos*    new_client_infos;
@@ -477,14 +477,16 @@ enum udtcp_poll_e udtcp_server_poll(udtcp_server *server, long timeout)
         /* is tcp server */
         if (server->poll_fds[i].fd == server->server_infos->tcp_socket)
         {
-            while (server->poll_loop
-                    && accept_all(server) != -1);
+            ret_receive = accept_client(server);
+            while (server->poll_loop && ret_receive == 0)
+                ret_receive = accept_client(server);
         }
         /* is udp server */
         else if (server->poll_fds[i].fd == server->server_infos->udp_server_socket)
         {
-            while (server->poll_loop
-                    && receive_udp(server, server->server_infos) > 0);
+            ret_receive = receive_udp(server, server->server_infos);
+            while (server->poll_loop && ret_receive > 0)
+                ret_receive = receive_udp(server, server->server_infos);
         }
         /* is client */
         else
