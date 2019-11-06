@@ -132,24 +132,16 @@ int main(void)
         /* create new poll thread */
         udtcp_start_client(client);
 
-        udtcp_send_tcp(client->server_infos, "test tcp", 9);
-        for (int i = 0; g_is_run && i < 100000; ++i) {
-            udtcp_send_udp(client->server_infos, "test udp", 9);
-            usleep(0);
-        }
-
         /* wait */
-        // while (g_is_run && client->is_started)
-        // {
-        //     sleep(1);
-        // }
+        while (g_is_run && client->is_started)
+        {
+            sleep(1);
+        }
 
         is_connect = UDTCP_CONNECT_ERROR;
 
         /* kill and join poll thread */
         udtcp_stop_client(client);
-
-        break;
     }
 
     udtcp_delete_client(client);

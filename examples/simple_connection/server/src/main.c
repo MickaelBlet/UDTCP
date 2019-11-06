@@ -8,7 +8,6 @@
 #define SERVER_POLL_TIMEOUT (3 * 60 * 1000) /* 3 minutes */
 
 static int g_is_run = 0;
-static unsigned int g_count_packet = 0;
 
 static void signal_stop(int sig_number)
 {
@@ -59,7 +58,6 @@ static void disconnect_callback(struct udtcp_server_s* server, udtcp_infos* info
         infos->tcp_port,
         infos->udp_server_port,
         infos->udp_client_port);
-    fprintf(stdout, "number udp packet %u.\n", g_count_packet);
 }
 
 static void receive_tcp_callback(struct udtcp_server_s* server, udtcp_infos* infos, void* data, size_t data_size)
@@ -82,16 +80,15 @@ static void receive_udp_callback(struct udtcp_server_s* server, udtcp_infos* inf
     (void)infos;
     (void)data;
     (void)data_size;
-    ++g_count_packet;
-    // fprintf(stdout,
-    //     "RECEIVE UDP CALLBACK "
-    //     "ip: %s, "
-    //     "udp port: %hu > [%i] \"%.*s\"\n",
-    //     infos->ip,
-    //     infos->udp_client_port,
-    //     (int)infos->id,
-    //     (int)data_size,
-    //     (const char *)data);
+    fprintf(stdout,
+        "RECEIVE UDP CALLBACK "
+        "ip: %s, "
+        "udp port: %hu > [%i] \"%.*s\"\n",
+        infos->ip,
+        infos->udp_client_port,
+        (int)infos->id,
+        (int)data_size,
+        (const char *)data);
 }
 
 static void log_callback(struct udtcp_server_s* server, enum udtcp_log_level_e level, const char* str)
