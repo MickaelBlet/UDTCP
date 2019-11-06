@@ -333,8 +333,28 @@ enum udtcp_poll_e udtcp_client_poll(udtcp_client* client, long timeout)
         /* is udp socket */
         else if (client->poll_fds[i].fd == client->client_infos->udp_server_socket)
         {
-            while (client->poll_loop
-                    && receive_udp(client, client->server_infos) > 0);
+            ret_receive = receive_udp(client, client->server_infos);
+            while (client->poll_loop && ret_receive > 0)
+                ret_receive = receive_udp(client, client->server_infos);
+            /* error socket */
+            if (ret_receive < 0)
+            {
+                UDTCP_LOG_ERROR(client, "1");
+                /* not nonblock errno */
+                if (errno != EWOULDBLOCK)
+                {
+                    UDTCP_LOG_ERROR(client, "2");
+                    disconnect(client, client->server_infos);
+                    return (UDTCP_POLL_ERROR);
+                }
+            }
+            /* close socket */
+            else if (ret_receive == 0)
+            {
+                UDTCP_LOG_ERROR(client, "0");
+                disconnect(client, client->server_infos);
+                return (UDTCP_POLL_ERROR);
+            }
         }
     }
     return (UDTCP_POLL_SUCCESS);
